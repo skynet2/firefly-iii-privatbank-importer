@@ -8,7 +8,7 @@ import (
 )
 
 type Repo interface {
-	AddMessage(ctx context.Context, message string)
+	AddMessage(ctx context.Context, message database.Message) error
 	GetLatestMessages(ctx context.Context) ([]*database.Message, error)
 	Clear(ctx context.Context) error
 }

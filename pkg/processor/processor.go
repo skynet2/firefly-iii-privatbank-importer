@@ -2,9 +2,11 @@ package processor
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/cockroachdb/errors"
+	"github.com/google/uuid"
 
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/database"
 )
@@ -26,27 +28,46 @@ func NewProcessor(
 
 func (p *Processor) ProcessMessage(
 	ctx context.Context,
-	message string,
-) ([]*database.Transaction, []error, error) {
-	lower := strings.ToLower(message)
+	message Message,
+) error {
+	lower := strings.ToLower(message.Content)
 
 	switch lower {
 	case "dry":
-		return p.ProcessLatestMessages(ctx)
+		return nil
+	case "clear":
+		return p.Clear(ctx)
+	default:
+		return p.AddMessage(ctx, message)
 	}
-	return nil, nil, nil
 }
 
 func (p *Processor) AddMessage(
 	ctx context.Context,
-	message string,
-) {
-	p.repo.AddMessage(ctx, message)
+	message Message,
+) error {
+	return p.repo.AddMessage(ctx, database.Message{
+		ID:          uuid.NewString(),
+		CreatedAt:   message.OriginalDate,
+		ProcessedAt: nil,
+		Content:     message.Content,
+	})
 }
 
 func (p *Processor) Clear(
 	ctx context.Context,
 ) error {
+	return p.repo.Clear(ctx)
+}
+
+func (p *Processor) DryRun(ctx context.Context, message Message) error {
+	transaction, errArr, err := p.ProcessLatestMessages(ctx)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(transaction, errArr)
+
 	return nil
 }
 
