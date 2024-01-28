@@ -102,6 +102,7 @@ func (p *Parser) parseInternalTransferFrom(
 		SourceAccount:               source[0],
 		DestinationAccount:          destinationAccount,
 		InternalTransferDirectionTo: false,
+		DateFromMessage:             source[1],
 	}
 
 	return finalTx, nil
@@ -140,6 +141,7 @@ func (p *Parser) parseInternalTransferTo(
 		SourceAccount:               source[0],
 		DestinationAccount:          destinationAccount,
 		InternalTransferDirectionTo: true,
+		DateFromMessage:             source[1],
 	}
 
 	return finalTx, nil

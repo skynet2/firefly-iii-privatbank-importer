@@ -22,8 +22,10 @@ type Transaction struct {
 	Description        string
 	SourceAccount      string
 	DestinationAccount string
+	DateFromMessage    string
 
 	InternalTransferDirectionTo bool
+	DuplicateTransactions       []*Transaction
 }
 
 type TransactionType int32
