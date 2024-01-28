@@ -18,6 +18,7 @@ import (
 const (
 	simpleExpenseLinesCount  = 3
 	remoteTransferLinesCount = 3
+	incomeTransferLinesCount = 3
 )
 
 type Parser struct {
@@ -39,6 +40,9 @@ func (p *Parser) ParseMessages(
 	}
 
 	if strings.Contains(lower, "переказ через приват") { // remote transfer
+		if strings.Contains(lower, "відправник:") { // income
+			return p.ParseIncomeTransfer(ctx, raw, date)
+		}
 		return p.ParseRemoteTransfer(ctx, raw, date)
 	}
 
@@ -48,9 +52,49 @@ func (p *Parser) ParseMessages(
 var (
 	simpleExpenseRegex        = regexp.MustCompile("(\\d+.?\\d+)([A-Z]{3}) (.*)$")
 	remoteTransferRegex       = simpleExpenseRegex
+	incomeTransferRegex       = simpleExpenseRegex
 	internalTransferToRegex   = regexp.MustCompile(`(\d+.?\d+)([A-Z]{3}) (Переказ на свою карту (\d+\*\*\d+) (.*))$`)
 	internalTransferFromRegex = regexp.MustCompile(`(\d+.?\d+)([A-Z]{3}) (Переказ зі своєї карти (\d+\*\*\d+) (.*))$`)
 )
+
+func (p *Parser) ParseIncomeTransfer(
+	_ context.Context,
+	raw string,
+	date time.Time,
+) (*database.Transaction, error) {
+	raw = strings.ReplaceAll(raw, "\r\n", "\n")
+	lines := strings.Split(raw, "\n")
+	if len(lines) < incomeTransferLinesCount {
+		return nil, errors.Newf("expected %d lines, got %d", incomeTransferLinesCount, len(lines))
+	}
+
+	matches := incomeTransferRegex.FindStringSubmatch(lines[0])
+	if len(matches) != 4 {
+		return nil, errors.Newf("expected 4 matches, got %v", spew.Sdump(matches))
+	}
+
+	amount, err := decimal.NewFromString(matches[1])
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	source := strings.Split(lines[1], " ")
+	if len(source) != 2 {
+		return nil, errors.Newf("expected 2 source parts, got %v", spew.Sdump(source))
+	}
+
+	finalTx := &database.Transaction{
+		ID:                 uuid.NewString(),
+		Date:               date,
+		Currency:           matches[2],
+		Description:        matches[3],
+		Amount:             amount,
+		Type:               database.TransactionTypeIncome,
+		DestinationAccount: source[0],
+	}
+
+	return finalTx, nil
+}
 
 func (p *Parser) ParseInternalTransfer(
 	ctx context.Context,
