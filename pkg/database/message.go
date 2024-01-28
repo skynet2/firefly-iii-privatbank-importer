@@ -10,6 +10,7 @@ type Message struct {
 	ID          string
 	CreatedAt   time.Time
 	ProcessedAt *time.Time
+	IsProcessed bool
 	Content     string
 }
 

@@ -5,17 +5,14 @@ import (
 	"os"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"github.com/caarlos0/env/v10"
 	"github.com/gorilla/mux"
-	"github.com/syumai/workers"
 
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/parser"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/processor"
-	repo "github.com/skynet2/firefly-iii-privatbank-importer/pkg/repo"
-)
-
-const (
-	DbName = "firefly_iii"
+	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/repo"
 )
 
 var apiKey string
@@ -26,7 +23,25 @@ func main() {
 		panic(err)
 	}
 
-	dataRepo, err := repo.NewD1(cfg.DbName)
+	credential, err := azidentity.NewDefaultAzureCredential(nil)
+	if err != nil {
+		panic(err)
+	}
+
+	endpoint := "todo"
+	client, err := azcosmos.NewClient(endpoint, credential, &azcosmos.ClientOptions{
+		EnableContentResponseOnWrite: true,
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	db, err := client.NewDatabase(cfg.DbName)
+	if err != nil {
+		panic(err)
+	}
+
+	dataRepo := repo.NewCosmo(db)
 	if err != nil {
 		panic(err)
 	}
@@ -50,5 +65,4 @@ func main() {
 	}
 
 	panic(srv.ListenAndServe())
-	workers.Serve(nil) // use http.DefaultServeMux
 }
