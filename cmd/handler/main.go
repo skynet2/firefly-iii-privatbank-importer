@@ -50,7 +50,7 @@ func main() {
 
 	processorSvc := processor.NewProcessor(dataRepo, parser.NewParser())
 	handle := NewHandler(processorSvc)
-	r.Handle("/hook", handle)
+	r.Handle("/github/hook", handle)
 
 	listenAddr := ":8080"
 	if val, ok := os.LookupEnv("FUNCTIONS_CUSTOMHANDLER_PORT"); ok {
