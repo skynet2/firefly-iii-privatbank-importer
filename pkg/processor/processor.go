@@ -7,22 +7,26 @@ import (
 
 	"github.com/cockroachdb/errors"
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/database"
 )
 
 type Processor struct {
-	repo   Repo
-	parser Parser
+	repo            Repo
+	parser          Parser
+	notificationSvc NotificationSvc
 }
 
 func NewProcessor(
 	repo Repo,
 	parser Parser,
+	notificationSvc NotificationSvc,
 ) *Processor {
 	return &Processor{
-		repo:   repo,
-		parser: parser,
+		repo:            repo,
+		parser:          parser,
+		notificationSvc: notificationSvc,
 	}
 }
 
@@ -34,7 +38,7 @@ func (p *Processor) ProcessMessage(
 
 	switch lower {
 	case "dry":
-		return nil
+		return p.DryRun(ctx, message)
 	case "clear":
 		return p.Clear(ctx)
 	default:
@@ -46,12 +50,21 @@ func (p *Processor) AddMessage(
 	ctx context.Context,
 	message Message,
 ) error {
-	return p.repo.AddMessage(ctx, database.Message{
+	err := p.repo.AddMessage(ctx, database.Message{
 		ID:          uuid.NewString(),
 		CreatedAt:   message.OriginalDate,
 		ProcessedAt: nil,
 		Content:     message.Content,
 	})
+	if err != nil {
+		return err
+	}
+
+	if err = p.notificationSvc.React(ctx, message.ChatID, message.MessageID); err != nil {
+		zerolog.Ctx(ctx).Error().Err(err).Msg("failed to react to message")
+	}
+
+	return nil
 }
 
 func (p *Processor) Clear(

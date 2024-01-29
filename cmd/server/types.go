@@ -9,7 +9,8 @@ type Message struct {
 	Date          int64          `json:"date"`
 	ForwardOrigin *ForwardOrigin `json:"forward_from"`
 	Text          string
-	Chat          Chat `json:"chat"`
+	Chat          Chat  `json:"chat"`
+	MessageID     int64 `json:"messageID"`
 }
 
 type Chat struct {
@@ -25,8 +26,4 @@ type SenderUser struct {
 	UserName string `json:"username"`
 	Id       int64  `json:"id"`
 	IsBot    bool   `json:"is_bot"`
-}
-
-type Config struct {
-	DbName string `env:"DB_NAME" envDefault:"firefly_iii"`
 }

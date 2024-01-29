@@ -20,3 +20,17 @@ type Parser interface {
 		date time.Time,
 	) (*database.Transaction, error)
 }
+
+type NotificationSvc interface {
+	React(
+		ctx context.Context,
+		chatID int64,
+		messageID int64,
+	) error
+
+	SendMessage(
+		ctx context.Context,
+		chatID int64,
+		text int64,
+	) error
+}

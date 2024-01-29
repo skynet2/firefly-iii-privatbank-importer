@@ -21,3 +21,5 @@
 go.work
 
 .idea/
+
+cmd/server/dist/

@@ -1,16 +1,7 @@
-.PHONY: dev
-dev:
-	wrangler dev
-
 .PHONY: build
 build:
-	go run ../../cmd/workers-assets-gen
-	tinygo build -o ./build/app.wasm -target wasm -no-debug ./main.go
+	@cd cmd/server && rm -rf dist && GOOS=linux CGO_ENABLED=0 go build -o dist/handler
 
-.PHONY: deploy
-deploy:
-	wrangler deploy
-
-.PHONY: init-db
-init-db:
-	wrangler d1 execute d1-blog-server --file=./schema.sql
+.PHONY: azure-deploy
+azure-deploy: build
+	@cd cmd/server/.azure && cp -a . ../dist/

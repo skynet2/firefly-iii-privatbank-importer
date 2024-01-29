@@ -9,4 +9,5 @@ type Message struct {
 	ChatID        int64
 	Content       string
 	ForwardedFrom string
+	MessageID     int64
 }
