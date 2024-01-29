@@ -7,11 +7,11 @@ import (
 )
 
 type Message struct {
-	ID          string
-	CreatedAt   time.Time
-	ProcessedAt *time.Time
-	IsProcessed bool
-	Content     string
+	ID          string     `json:"id"`
+	CreatedAt   time.Time  `json:"createdAt"`
+	ProcessedAt *time.Time `json:"processedAt"`
+	IsProcessed bool       `json:"isProcessed"`
+	Content     string     `json:"content"`
 }
 
 type Transaction struct {
