@@ -87,6 +87,10 @@ func (c *Cosmo) AddMessage(ctx context.Context, message database.Message) error 
 	return nil
 }
 func (c *Cosmo) getMessageContainer() (*azcosmos.ContainerClient, error) {
+	if err := c.setupContainers(); err != nil {
+		return nil, err
+	}
+
 	return c.cl.NewContainer(messagesContainer)
 }
 

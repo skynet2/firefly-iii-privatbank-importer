@@ -9,6 +9,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/imroc/req/v3"
 
+	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/firefly"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/notifications"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/parser"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/processor"
@@ -23,12 +24,14 @@ func main() {
 		panic(err)
 	}
 
-	db, err := client.NewDatabase(os.Getenv("COSMO_DB_NAME"))
-	if err != nil {
-		panic(err)
-	}
+	httpClient := req.DefaultClient()
+	fireflyClient := firefly.NewFirefly(
+		os.Getenv("FIREFLY_TOKEN"),
+		os.Getenv("FIREFLY_URL"),
+		httpClient,
+	)
 
-	dataRepo := repo.NewCosmo(db)
+	dataRepo, err := repo.NewCosmo(client, os.Getenv("COSMO_DB_NAME"))
 	if err != nil {
 		panic(err)
 	}
@@ -37,12 +40,13 @@ func main() {
 
 	tgNotifier := notifications.NewTelegram(
 		os.Getenv("TELEGRAM_BOT_TOKEN"),
-		req.DefaultClient(),
+		httpClient,
 	)
 	processorSvc := processor.NewProcessor(
 		dataRepo,
 		parser.NewParser(),
 		tgNotifier,
+		fireflyClient,
 	)
 	handle := NewHandler(processorSvc)
 	r.Handle("/api/github/webhook", handle)

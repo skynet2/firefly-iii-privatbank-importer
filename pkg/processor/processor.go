@@ -10,21 +10,25 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/database"
+	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/firefly"
 )
 
 type Processor struct {
 	repo            Repo
 	parser          Parser
 	notificationSvc NotificationSvc
+	fireflySvc      Firefly
 }
 
 func NewProcessor(
 	repo Repo,
 	parser Parser,
 	notificationSvc NotificationSvc,
+	fireflySvc Firefly,
 ) *Processor {
 	return &Processor{
 		repo:            repo,
+		fireflySvc:      fireflySvc,
 		parser:          parser,
 		notificationSvc: notificationSvc,
 	}
@@ -74,12 +78,43 @@ func (p *Processor) Clear(
 }
 
 func (p *Processor) DryRun(ctx context.Context, message Message) error {
-	transaction, errArr, err := p.ProcessLatestMessages(ctx)
+	transactions, errArr, err := p.ProcessLatestMessages(ctx)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println(transaction, errArr)
+	var sb strings.Builder
+	for _, tx := range transactions {
+		ffSource := ""
+		ffDest := ""
+		if tx.FireflyTransaction != nil {
+			ffSource = tx.FireflyTransaction.SourceName
+			ffDest = tx.FireflyTransaction.DestinationName
+		}
+
+		sb.WriteString(fmt.Sprintf("%s%s %v || D %v|%v || S %v|%v || %s",
+			tx.Amount, tx.Currency, tx.Date.Format("2006-01-02 15:04"),
+			tx.DestinationAccount, ffDest,
+			tx.SourceAccount, ffSource,
+			tx.Description,
+		))
+
+		if tx.FireflyMappingError != nil {
+			sb.WriteString(fmt.Sprintf("\nERROR: %s", tx.FireflyMappingError))
+		}
+		sb.WriteString("\n====================\n")
+	}
+
+	if len(errArr) > 0 {
+		sb.WriteString("\n\nErrors:\n")
+		for _, err = range errArr {
+			sb.WriteString(fmt.Sprintf("%s\n", err))
+		}
+	}
+
+	if err = p.notificationSvc.SendMessage(ctx, message.ChatID, sb.String()); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -107,7 +142,90 @@ func (p *Processor) ProcessLatestMessages(
 		transactions = append(transactions, transaction)
 	}
 
+	transactions, err = p.Mapper(ctx, transactions)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	return transactions, parseErrorsArr, nil
+}
+
+func (p *Processor) Mapper(
+	ctx context.Context,
+	transactions []*database.Transaction,
+) ([]*database.Transaction, error) {
+	accounts, err := p.fireflySvc.ListAccounts(ctx)
+	if err != nil {
+		return nil, err
+	}
+	accountByIBAN := map[string]*firefly.Account{}
+	for _, acc := range accounts {
+		accountByIBAN[acc.Attributes.Iban] = acc
+	}
+
+	for _, tx := range transactions {
+		switch tx.Type {
+		case database.TransactionTypeRemoteTransfer:
+			fallthrough
+		case database.TransactionTypeExpense:
+			acc, ok := accountByIBAN[tx.SourceAccount]
+			if !ok {
+				tx.FireflyMappingError = errors.Newf("account with IBAN %s not found", tx.SourceAccount)
+				continue
+			}
+
+			tx.FireflyTransaction = &database.FireflyTransaction{
+				Type:        "withdrawal",
+				SourceID:    acc.Id,
+				SourceName:  acc.Attributes.Name,
+				Description: tx.Description,
+				Notes:       tx.Description,
+			}
+		case database.TransactionTypeInternalTransfer:
+			sourceID := tx.SourceAccount
+			destinationID := tx.DestinationAccount
+
+			accSource, ok := accountByIBAN[sourceID]
+			if !ok {
+				tx.FireflyMappingError = errors.Newf("source account with IBAN %s not found", sourceID)
+				continue
+			}
+
+			accDestination, ok := accountByIBAN[destinationID]
+			if !ok {
+				tx.FireflyMappingError = errors.Newf("destination account with IBAN %s not found", destinationID)
+				continue
+			}
+
+			tx.FireflyTransaction = &database.FireflyTransaction{
+				Type:            "transfer",
+				SourceID:        accSource.Id,
+				SourceName:      accSource.Attributes.Name,
+				DestinationID:   accDestination.Id,
+				DestinationName: accDestination.Attributes.Name,
+				Description:     tx.Description,
+				Notes:           tx.Description,
+			}
+		case database.TransactionTypeIncome:
+			acc, ok := accountByIBAN[tx.DestinationAccount]
+			if !ok {
+				tx.FireflyMappingError = errors.Newf("account with IBAN %s not found", tx.DestinationAccount)
+				continue
+			}
+
+			tx.FireflyTransaction = &database.FireflyTransaction{
+				Type:            "income",
+				DestinationID:   acc.Id,
+				DestinationName: acc.Attributes.Name,
+				Description:     tx.Description,
+				Notes:           tx.Description,
+			}
+		default:
+			tx.FireflyMappingError = errors.Newf("unknown transaction type %d", tx.Type)
+		}
+	}
+
+	return transactions, nil
 }
 
 func (p *Processor) Merge(

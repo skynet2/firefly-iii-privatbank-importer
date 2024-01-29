@@ -25,8 +25,21 @@ type Transaction struct {
 	DestinationAccount string
 	DateFromMessage    string
 
+	FireflyTransaction  *FireflyTransaction
+	FireflyMappingError error
+
 	InternalTransferDirectionTo bool
 	DuplicateTransactions       []*Transaction
+}
+
+type FireflyTransaction struct {
+	Type            string
+	SourceID        string
+	SourceName      string
+	DestinationID   string
+	DestinationName string
+	Description     string
+	Notes           string
 }
 
 type TransactionType int32
@@ -36,5 +49,5 @@ const (
 	TransactionTypeIncome           = TransactionType(1)
 	TransactionTypeExpense          = TransactionType(2)
 	TransactionTypeInternalTransfer = TransactionType(3)
-	TransactionTypeRemoteTransfer   = TransactionType(3)
+	TransactionTypeRemoteTransfer   = TransactionType(4)
 )

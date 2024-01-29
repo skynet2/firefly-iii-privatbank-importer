@@ -143,8 +143,8 @@ func (p *Parser) parseInternalTransferFrom(
 		Description:                 matches[3],
 		Amount:                      amount,
 		Type:                        database.TransactionTypeInternalTransfer,
-		SourceAccount:               source[0],
-		DestinationAccount:          destinationAccount,
+		SourceAccount:               destinationAccount,
+		DestinationAccount:          source[0],
 		InternalTransferDirectionTo: false,
 		DateFromMessage:             source[1],
 	}

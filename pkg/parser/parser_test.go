@@ -64,6 +64,7 @@ func TestParseInternalTransferTo(t *testing.T) {
 	assert.Equal(t, "4*68", resp.SourceAccount)
 	assert.Equal(t, "5*20", resp.DestinationAccount)
 	assert.Equal(t, database.TransactionTypeInternalTransfer, resp.Type)
+	assert.True(t, resp.InternalTransferDirectionTo)
 }
 
 func TestParseInternalTransferFrom(t *testing.T) {
@@ -80,9 +81,10 @@ func TestParseInternalTransferFrom(t *testing.T) {
 	assert.Equal(t, "1.00", resp.Amount.StringFixed(2))
 	assert.Equal(t, "UAH", resp.Currency)
 	assert.Equal(t, "Переказ зі своєї карти 47**68 через додаток Приват24", resp.Description)
-	assert.Equal(t, "5*20", resp.SourceAccount)
-	assert.Equal(t, "4*68", resp.DestinationAccount)
+	assert.Equal(t, "4*68", resp.SourceAccount)
+	assert.Equal(t, "5*20", resp.DestinationAccount)
 	assert.Equal(t, database.TransactionTypeInternalTransfer, resp.Type)
+	assert.False(t, resp.InternalTransferDirectionTo)
 }
 
 func TestParseIncomeTransfer(t *testing.T) {

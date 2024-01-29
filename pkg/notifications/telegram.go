@@ -25,7 +25,7 @@ func NewTelegram(
 func (t *Telegram) SendMessage(
 	ctx context.Context,
 	chatID int64,
-	text int64,
+	text string,
 ) error {
 	resp, err := t.client.R().
 		SetBody(map[string]interface{}{

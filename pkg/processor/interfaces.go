@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/database"
+	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/firefly"
 )
 
 type Repo interface {
@@ -21,6 +22,10 @@ type Parser interface {
 	) (*database.Transaction, error)
 }
 
+type Firefly interface {
+	ListAccounts(ctx context.Context) ([]*firefly.Account, error)
+}
+
 type NotificationSvc interface {
 	React(
 		ctx context.Context,
@@ -31,6 +36,6 @@ type NotificationSvc interface {
 	SendMessage(
 		ctx context.Context,
 		chatID int64,
-		text int64,
+		text string,
 	) error
 }
