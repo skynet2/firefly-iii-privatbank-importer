@@ -5,7 +5,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"github.com/gorilla/mux"
 	"github.com/imroc/req/v3"
@@ -19,20 +18,12 @@ import (
 var apiKey string
 
 func main() {
-	credential, err := azidentity.NewDefaultAzureCredential(nil)
+	client, err := azcosmos.NewClientFromConnectionString(os.Getenv("COSMO_DB_CONNECTION_STRING"), nil)
 	if err != nil {
 		panic(err)
 	}
 
-	endpoint := "todo"
-	client, err := azcosmos.NewClient(endpoint, credential, &azcosmos.ClientOptions{
-		EnableContentResponseOnWrite: true,
-	})
-	if err != nil {
-		panic(err)
-	}
-
-	db, err := client.NewDatabase(os.Getenv("COSMOS_DB_NAME"))
+	db, err := client.NewDatabase(os.Getenv("COSMO_DB_NAME"))
 	if err != nil {
 		panic(err)
 	}
@@ -54,7 +45,7 @@ func main() {
 		tgNotifier,
 	)
 	handle := NewHandler(processorSvc)
-	r.Handle("/github/hook", handle)
+	r.Handle("/api/github/webhook", handle)
 
 	listenAddr := ":8080"
 	if val, ok := os.LookupEnv("FUNCTIONS_CUSTOMHANDLER_PORT"); ok {
