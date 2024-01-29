@@ -158,9 +158,9 @@ func (p *Processor) Mapper(
 	if err != nil {
 		return nil, err
 	}
-	accountByIBAN := map[string]*firefly.Account{}
+	accountByAccountNumber := map[string]*firefly.Account{}
 	for _, acc := range accounts {
-		accountByIBAN[acc.Attributes.Iban] = acc
+		accountByAccountNumber[acc.Attributes.AccountNumber] = acc
 	}
 
 	for _, tx := range transactions {
@@ -168,7 +168,7 @@ func (p *Processor) Mapper(
 		case database.TransactionTypeRemoteTransfer:
 			fallthrough
 		case database.TransactionTypeExpense:
-			acc, ok := accountByIBAN[tx.SourceAccount]
+			acc, ok := accountByAccountNumber[tx.SourceAccount]
 			if !ok {
 				tx.FireflyMappingError = errors.Newf("account with IBAN %s not found", tx.SourceAccount)
 				continue
@@ -185,13 +185,13 @@ func (p *Processor) Mapper(
 			sourceID := tx.SourceAccount
 			destinationID := tx.DestinationAccount
 
-			accSource, ok := accountByIBAN[sourceID]
+			accSource, ok := accountByAccountNumber[sourceID]
 			if !ok {
 				tx.FireflyMappingError = errors.Newf("source account with IBAN %s not found", sourceID)
 				continue
 			}
 
-			accDestination, ok := accountByIBAN[destinationID]
+			accDestination, ok := accountByAccountNumber[destinationID]
 			if !ok {
 				tx.FireflyMappingError = errors.Newf("destination account with IBAN %s not found", destinationID)
 				continue
@@ -207,7 +207,7 @@ func (p *Processor) Mapper(
 				Notes:           tx.Description,
 			}
 		case database.TransactionTypeIncome:
-			acc, ok := accountByIBAN[tx.DestinationAccount]
+			acc, ok := accountByAccountNumber[tx.DestinationAccount]
 			if !ok {
 				tx.FireflyMappingError = errors.Newf("account with IBAN %s not found", tx.DestinationAccount)
 				continue
