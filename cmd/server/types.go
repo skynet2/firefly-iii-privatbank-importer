@@ -10,7 +10,7 @@ type Message struct {
 	ForwardOrigin *ForwardOrigin `json:"forward_from"`
 	Text          string
 	Chat          Chat  `json:"chat"`
-	MessageID     int64 `json:"messageID"`
+	MessageID     int64 `json:"message_id"`
 }
 
 type Chat struct {
