@@ -43,6 +43,7 @@ func (h *Handler) ProcessWebhook(
 		ChatID:        webhook.Message.Chat.Id,
 		Content:       webhook.Message.Text,
 		ForwardedFrom: forwardedFrom,
+		MessageID:     webhook.Message.MessageID,
 	})
 }
 

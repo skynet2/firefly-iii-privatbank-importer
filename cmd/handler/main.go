@@ -7,9 +7,10 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
-	"github.com/caarlos0/env/v10"
 	"github.com/gorilla/mux"
+	"github.com/imroc/req/v3"
 
+	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/notifications"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/parser"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/processor"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/repo"
@@ -18,11 +19,6 @@ import (
 var apiKey string
 
 func main() {
-	var cfg Config
-	if err := env.Parse(&cfg); err != nil {
-		panic(err)
-	}
-
 	credential, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {
 		panic(err)
@@ -36,7 +32,7 @@ func main() {
 		panic(err)
 	}
 
-	db, err := client.NewDatabase(cfg.DbName)
+	db, err := client.NewDatabase(os.Getenv("COSMOS_DB_NAME"))
 	if err != nil {
 		panic(err)
 	}
@@ -48,7 +44,15 @@ func main() {
 
 	r := mux.NewRouter()
 
-	processorSvc := processor.NewProcessor(dataRepo, parser.NewParser())
+	tgNotifier := notifications.NewTelegram(
+		os.Getenv("TELEGRAM_BOT_TOKEN"),
+		req.DefaultClient(),
+	)
+	processorSvc := processor.NewProcessor(
+		dataRepo,
+		parser.NewParser(),
+		tgNotifier,
+	)
 	handle := NewHandler(processorSvc)
 	r.Handle("/github/hook", handle)
 
