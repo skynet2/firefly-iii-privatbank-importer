@@ -92,14 +92,12 @@ func (p *Processor) DryRun(ctx context.Context, message Message) error {
 			ffDest = tx.FireflyTransaction.DestinationName
 		}
 
-		sb.WriteString(fmt.Sprintf("%s%s %v || D %v|%v || S %v|%v || %s",
-			tx.Amount, tx.Currency, tx.Date.Format("2006-01-02 15:04"),
-			tx.DestinationAccount, ffDest,
-			tx.SourceAccount, ffSource,
-			tx.Description,
-		))
-
-		sb.WriteString(fmt.Sprintf("\nType:%v || Dest: %v", tx.Type, tx.InternalTransferDirectionTo))
+		sb.WriteString(fmt.Sprintf("%s %s %s", tx.Amount, tx.Currency,
+			tx.Date.Format("2006-01-02 15:04")))
+		sb.WriteString(fmt.Sprintf("\nSource %s || %s", tx.SourceAccount, ffSource))
+		sb.WriteString(fmt.Sprintf("\nDestination %s || %s", tx.DestinationAccount, ffDest))
+		sb.WriteString(fmt.Sprintf("\nDescription: %s", tx.Description))
+		sb.WriteString(fmt.Sprintf("\nType: %s", tx.Type))
 
 		if tx.FireflyMappingError != nil {
 			sb.WriteString(fmt.Sprintf("\nERROR: %s", tx.FireflyMappingError))

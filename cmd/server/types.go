@@ -7,7 +7,7 @@ type Webhook struct {
 
 type Message struct {
 	Date          int64          `json:"date"`
-	ForwardOrigin *ForwardOrigin `json:"forward_from"`
+	ForwardOrigin *ForwardOrigin `json:"forward_origin"`
 	Text          string
 	Chat          Chat  `json:"chat"`
 	MessageID     int64 `json:"message_id"`
