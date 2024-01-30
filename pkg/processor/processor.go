@@ -99,6 +99,8 @@ func (p *Processor) DryRun(ctx context.Context, message Message) error {
 			tx.Description,
 		))
 
+		sb.WriteString(fmt.Sprintf("\nType:%v || Dest: %v", tx.Type, tx.InternalTransferDirectionTo))
+
 		if tx.FireflyMappingError != nil {
 			sb.WriteString(fmt.Sprintf("\nERROR: %s", tx.FireflyMappingError))
 		}
@@ -140,6 +142,11 @@ func (p *Processor) ProcessLatestMessages(
 		}
 
 		transactions = append(transactions, transaction)
+	}
+
+	transactions, err = p.Merge(ctx, transactions)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	transactions, err = p.Mapper(ctx, transactions)
@@ -255,14 +262,9 @@ func (p *Processor) Merge(
 				continue // not our tx
 			}
 
-			if tx.InternalTransferDirectionTo {
-				if tx.DestinationAccount != f.SourceAccount {
-					continue // not our tx
-				}
-			} else {
-				if tx.SourceAccount != f.DestinationAccount {
-					continue // not our tx
-				}
+			if tx.DestinationAccount != f.DestinationAccount ||
+				tx.SourceAccount != f.SourceAccount {
+				continue
 			}
 
 			// otherwise we have a duplicate

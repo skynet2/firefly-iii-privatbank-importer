@@ -14,7 +14,7 @@ import (
 
 func TestMerger(t *testing.T) {
 	t.Run("firstIsTo", func(t *testing.T) {
-		pr := processor.NewProcessor(nil, nil)
+		pr := processor.NewProcessor(nil, nil, nil, nil)
 
 		txList := []*database.Transaction{
 			{
@@ -38,9 +38,9 @@ func TestMerger(t *testing.T) {
 				ID:                          uuid.NewString(),
 				Type:                        database.TransactionTypeInternalTransfer,
 				Currency:                    "UAH",
-				SourceAccount:               "5*20",
+				SourceAccount:               "4*68",
 				Amount:                      decimal.RequireFromString("1.00"),
-				DestinationAccount:          "4*68",
+				DestinationAccount:          "5*20",
 				DateFromMessage:             "16:13",
 				InternalTransferDirectionTo: false,
 			},
@@ -58,16 +58,16 @@ func TestMerger(t *testing.T) {
 	})
 
 	t.Run("firstIsFrom", func(t *testing.T) {
-		pr := processor.NewProcessor(nil, nil)
+		pr := processor.NewProcessor(nil, nil, nil, nil)
 
 		txList := []*database.Transaction{
 			{
 				ID:                          uuid.NewString(),
 				Type:                        database.TransactionTypeInternalTransfer,
 				Currency:                    "UAH",
-				SourceAccount:               "5*20",
+				SourceAccount:               "4*68",
 				Amount:                      decimal.RequireFromString("1.00"),
-				DestinationAccount:          "4*68",
+				DestinationAccount:          "5*20",
 				DateFromMessage:             "16:13",
 				InternalTransferDirectionTo: false,
 			},
