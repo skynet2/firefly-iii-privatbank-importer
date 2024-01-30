@@ -15,10 +15,15 @@ type Message struct {
 }
 
 type Transaction struct {
-	ID                 string
-	Type               TransactionType
-	Amount             decimal.Decimal
-	Currency           string
+	ID   string
+	Type TransactionType
+
+	SourceAmount   decimal.Decimal
+	SourceCurrency string
+
+	DestinationAmount   decimal.Decimal
+	DestinationCurrency string
+
 	Date               time.Time
 	Description        string
 	SourceAccount      string

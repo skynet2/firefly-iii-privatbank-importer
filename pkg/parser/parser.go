@@ -86,9 +86,9 @@ func (p *Parser) ParseIncomeTransfer(
 	finalTx := &database.Transaction{
 		ID:                 uuid.NewString(),
 		Date:               date,
-		Currency:           matches[2],
+		SourceCurrency:     matches[2],
 		Description:        matches[3],
-		Amount:             amount,
+		SourceAmount:       amount,
 		Type:               database.TransactionTypeIncome,
 		DestinationAccount: source[0],
 		Raw:                raw,
@@ -141,9 +141,9 @@ func (p *Parser) parseInternalTransferFrom(
 	finalTx := &database.Transaction{
 		ID:                          uuid.NewString(),
 		Date:                        date,
-		Currency:                    matches[2],
+		DestinationCurrency:         matches[2],
 		Description:                 matches[3],
-		Amount:                      amount,
+		DestinationAmount:           amount,
 		Type:                        database.TransactionTypeInternalTransfer,
 		SourceAccount:               destinationAccount,
 		DestinationAccount:          source[0],
@@ -182,9 +182,9 @@ func (p *Parser) parseInternalTransferTo(
 	finalTx := &database.Transaction{
 		ID:                          uuid.NewString(),
 		Date:                        date,
-		Currency:                    matches[2],
+		SourceCurrency:              matches[2],
 		Description:                 matches[3],
-		Amount:                      amount,
+		SourceAmount:                amount,
 		Type:                        database.TransactionTypeInternalTransfer,
 		SourceAccount:               source[0],
 		DestinationAccount:          destinationAccount,
@@ -231,14 +231,14 @@ func (p *Parser) ParseRemoteTransfer(
 	}
 
 	finalTx := &database.Transaction{
-		ID:            uuid.NewString(),
-		Date:          date,
-		Currency:      matches[2],
-		Description:   matches[3],
-		Amount:        amount,
-		Type:          database.TransactionTypeRemoteTransfer,
-		SourceAccount: source[0],
-		Raw:           raw,
+		ID:             uuid.NewString(),
+		Date:           date,
+		SourceCurrency: matches[2],
+		Description:    matches[3],
+		SourceAmount:   amount,
+		Type:           database.TransactionTypeRemoteTransfer,
+		SourceAccount:  source[0],
+		Raw:            raw,
 	}
 
 	return finalTx, nil
@@ -272,14 +272,14 @@ func (p *Parser) ParseSimpleExpense(
 	}
 
 	finalTx := &database.Transaction{
-		ID:            uuid.NewString(),
-		Date:          date,
-		Currency:      matches[2],
-		Description:   matches[3],
-		Amount:        amount,
-		Type:          database.TransactionTypeExpense,
-		SourceAccount: source[0],
-		Raw:           raw,
+		ID:             uuid.NewString(),
+		Date:           date,
+		SourceCurrency: matches[2],
+		Description:    matches[3],
+		SourceAmount:   amount,
+		Type:           database.TransactionTypeExpense,
+		SourceAccount:  source[0],
+		Raw:            raw,
 	}
 
 	return finalTx, nil

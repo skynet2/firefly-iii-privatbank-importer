@@ -8,6 +8,7 @@ import (
 	"github.com/cockroachdb/errors"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"github.com/shopspring/decimal"
 
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/database"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/firefly"
@@ -94,12 +95,12 @@ func (p *Processor) DryRun(ctx context.Context, message Message) error {
 			ffDest = tx.FireflyTransaction.DestinationName
 		}
 
-		sb.WriteString(fmt.Sprintf("%s %s %s", tx.Amount, tx.Currency,
+		sb.WriteString(fmt.Sprintf("%s %s %s", tx.SourceAmount, tx.SourceCurrency,
 			tx.Date.Format("2006-01-02 15:04")))
 		sb.WriteString(fmt.Sprintf("\nSource %s || %s", tx.SourceAccount, ffSource))
 		sb.WriteString(fmt.Sprintf("\nDestination %s || %s", tx.DestinationAccount, ffDest))
 		sb.WriteString(fmt.Sprintf("\nDescription: %s", tx.Description))
-		sb.WriteString(fmt.Sprintf("\nType: %s", tx.Type))
+		sb.WriteString(fmt.Sprintf("\nType: %v", tx.Type))
 
 		if tx.FireflyMappingError != nil {
 			sb.WriteString(fmt.Sprintf("\nERROR: %s", tx.FireflyMappingError))
@@ -254,7 +255,7 @@ func (p *Processor) Merge(
 				continue
 			}
 
-			if !f.Amount.Equal(tx.Amount) || f.DateFromMessage != tx.DateFromMessage {
+			if f.DateFromMessage != tx.DateFromMessage {
 				continue // not our tx
 			}
 
@@ -265,6 +266,20 @@ func (p *Processor) Merge(
 			if tx.DestinationAccount != f.DestinationAccount ||
 				tx.SourceAccount != f.SourceAccount {
 				continue
+			}
+
+			if f.DestinationCurrency == "" && tx.DestinationCurrency != "" {
+				f.DestinationCurrency = tx.DestinationCurrency
+			}
+			if f.SourceCurrency == "" && tx.SourceCurrency != "" {
+				f.SourceCurrency = tx.SourceCurrency
+			}
+
+			if f.DestinationAmount.Equal(decimal.Zero) && tx.DestinationAmount.GreaterThan(decimal.Zero) {
+				f.DestinationAmount = tx.DestinationAmount
+			}
+			if f.SourceAmount.Equal(decimal.Zero) && tx.SourceAmount.GreaterThan(decimal.Zero) {
+				f.SourceAmount = tx.SourceAmount
 			}
 
 			// otherwise we have a duplicate
@@ -283,14 +298,15 @@ func (p *Processor) Merge(
 }
 
 func (p *Processor) Commit(ctx context.Context, message Message) error {
-	transactions, errArr, err := p.ProcessLatestMessages(ctx)
-	if err != nil {
-		return err
-	}
-
-	for _, tx := range transactions {
-		
-	}
-
+	//transactions, errArr, err := p.ProcessLatestMessages(ctx)
+	//if err != nil {
+	//	return err
+	//}
+	//
+	//for _, tx := range transactions {
+	//
+	//}
+	//
+	//return nil
 	return nil
 }
