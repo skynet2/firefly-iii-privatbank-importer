@@ -24,6 +24,7 @@ type Transaction struct {
 	SourceAccount      string
 	DestinationAccount string
 	DateFromMessage    string
+	Raw                string
 
 	FireflyTransaction  *FireflyTransaction
 	FireflyMappingError error

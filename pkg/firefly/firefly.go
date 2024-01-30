@@ -34,6 +34,7 @@ func (f *Firefly) ListAccounts(ctx context.Context) ([]*Account, error) {
 		SetBearerAuthToken(f.apiKey).
 		SetSuccessResult(&apiResp).
 		EnableDumpTo(os.Stdout).
+		SetHeader("Accept", "application/json").
 		SetQueryParam("limit", "100500").
 		Get(f.fireflyURL + "/api/v1/accounts")
 	if err != nil {
@@ -45,4 +46,31 @@ func (f *Firefly) ListAccounts(ctx context.Context) ([]*Account, error) {
 	}
 
 	return apiResp.Data, nil
+}
+
+func (f *Firefly) CreateTransactions(ctx context.Context, tx *Transaction) (*Transaction, error) {
+	var apiResp GenericApiResponse[Transaction]
+
+	resp, err := f.cl.R().
+		SetContext(ctx).
+		SetBearerAuthToken(f.apiKey).
+		SetSuccessResult(&apiResp).
+		EnableDumpTo(os.Stdout).
+		SetHeader("Accept", "application/json").
+		SetBody(map[string]interface{}{
+			"apply_rules":             true,
+			"error_if_duplicate_hash": false,
+			"fire_webhooks":           true,
+			"transactions":            []*Transaction{tx},
+		}).
+		Post(f.fireflyURL + "/api/v1/transactions")
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.IsErrorState() {
+		return nil, errors.Newf("got error response: %s", resp.String())
+	}
+
+	return &apiResp.Data, nil
 }

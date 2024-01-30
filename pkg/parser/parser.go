@@ -91,6 +91,7 @@ func (p *Parser) ParseIncomeTransfer(
 		Amount:             amount,
 		Type:               database.TransactionTypeIncome,
 		DestinationAccount: source[0],
+		Raw:                raw,
 	}
 
 	return finalTx, nil
@@ -107,14 +108,15 @@ func (p *Parser) ParseInternalTransfer(
 	isTo := strings.Contains(strings.ToLower(lines[0]), "переказ на свою карту")
 
 	if isTo {
-		return p.parseInternalTransferTo(ctx, lines, date)
+		return p.parseInternalTransferTo(ctx, raw, lines, date)
 	}
 
-	return p.parseInternalTransferFrom(ctx, lines, date)
+	return p.parseInternalTransferFrom(ctx, raw, lines, date)
 }
 
 func (p *Parser) parseInternalTransferFrom(
 	_ context.Context,
+	raw string,
 	lines []string,
 	date time.Time,
 ) (*database.Transaction, error) {
@@ -147,6 +149,7 @@ func (p *Parser) parseInternalTransferFrom(
 		DestinationAccount:          source[0],
 		InternalTransferDirectionTo: false,
 		DateFromMessage:             source[1],
+		Raw:                         raw,
 	}
 
 	return finalTx, nil
@@ -154,6 +157,7 @@ func (p *Parser) parseInternalTransferFrom(
 
 func (p *Parser) parseInternalTransferTo(
 	_ context.Context,
+	raw string,
 	lines []string,
 	date time.Time,
 ) (*database.Transaction, error) {
@@ -186,6 +190,7 @@ func (p *Parser) parseInternalTransferTo(
 		DestinationAccount:          destinationAccount,
 		InternalTransferDirectionTo: true,
 		DateFromMessage:             source[1],
+		Raw:                         raw,
 	}
 
 	return finalTx, nil
@@ -233,6 +238,7 @@ func (p *Parser) ParseRemoteTransfer(
 		Amount:        amount,
 		Type:          database.TransactionTypeRemoteTransfer,
 		SourceAccount: source[0],
+		Raw:           raw,
 	}
 
 	return finalTx, nil
@@ -273,6 +279,7 @@ func (p *Parser) ParseSimpleExpense(
 		Amount:        amount,
 		Type:          database.TransactionTypeExpense,
 		SourceAccount: source[0],
+		Raw:           raw,
 	}
 
 	return finalTx, nil

@@ -43,6 +43,8 @@ func (p *Processor) ProcessMessage(
 	switch lower {
 	case "dry":
 		return p.DryRun(ctx, message)
+	case "commit":
+		return p.Commit(ctx, message)
 	case "clear":
 		return p.Clear(ctx)
 	default:
@@ -184,7 +186,7 @@ func (p *Processor) Mapper(
 				SourceID:    acc.Id,
 				SourceName:  acc.Attributes.Name,
 				Description: tx.Description,
-				Notes:       tx.Description,
+				Notes:       tx.Raw,
 			}
 		case database.TransactionTypeInternalTransfer:
 			sourceID := tx.SourceAccount
@@ -209,7 +211,7 @@ func (p *Processor) Mapper(
 				DestinationID:   accDestination.Id,
 				DestinationName: accDestination.Attributes.Name,
 				Description:     tx.Description,
-				Notes:           tx.Description,
+				Notes:           tx.Raw,
 			}
 		case database.TransactionTypeIncome:
 			acc, ok := accountByAccountNumber[tx.DestinationAccount]
@@ -223,7 +225,7 @@ func (p *Processor) Mapper(
 				DestinationID:   acc.Id,
 				DestinationName: acc.Attributes.Name,
 				Description:     tx.Description,
-				Notes:           tx.Description,
+				Notes:           tx.Raw,
 			}
 		default:
 			tx.FireflyMappingError = errors.Newf("unknown transaction type %d", tx.Type)
@@ -278,4 +280,17 @@ func (p *Processor) Merge(
 	}
 
 	return finalTransactions, nil
+}
+
+func (p *Processor) Commit(ctx context.Context, message Message) error {
+	transactions, errArr, err := p.ProcessLatestMessages(ctx)
+	if err != nil {
+		return err
+	}
+
+	for _, tx := range transactions {
+		
+	}
+
+	return nil
 }

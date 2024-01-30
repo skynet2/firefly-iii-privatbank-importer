@@ -18,3 +18,14 @@ type AccountAttributes struct {
 	AccountNumber string `json:"account_number"`
 	Active        bool   `json:"active"`
 }
+
+type Transaction struct {
+	Type          string `json:"type"`
+	Date          string `json:"date"`
+	Amount        string `json:"amount"`
+	Description   string `json:"description"`
+	CurrencyCode  string `json:"currency_code"`
+	SourceID      string `json:"source_id"`
+	DestinationID string `json:"destination_id,omitempty"`
+	Notes         string `json:"notes"`
+}
