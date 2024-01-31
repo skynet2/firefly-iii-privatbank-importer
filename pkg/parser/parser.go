@@ -84,14 +84,14 @@ func (p *Parser) ParseIncomeTransfer(
 	}
 
 	finalTx := &database.Transaction{
-		ID:                 uuid.NewString(),
-		Date:               date,
-		SourceCurrency:     matches[2],
-		Description:        matches[3],
-		SourceAmount:       amount,
-		Type:               database.TransactionTypeIncome,
-		DestinationAccount: source[0],
-		Raw:                raw,
+		ID:                  uuid.NewString(),
+		Date:                date,
+		DestinationCurrency: matches[2],
+		Description:         matches[3],
+		DestinationAmount:   amount,
+		Type:                database.TransactionTypeIncome,
+		DestinationAccount:  source[0],
+		Raw:                 raw,
 	}
 
 	return finalTx, nil

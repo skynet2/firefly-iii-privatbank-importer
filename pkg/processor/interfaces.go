@@ -24,6 +24,10 @@ type Parser interface {
 
 type Firefly interface {
 	ListAccounts(ctx context.Context) ([]*firefly.Account, error)
+	MapTransactions(
+		ctx context.Context,
+		transactions []*database.Transaction,
+	) ([]*firefly.MappedTransaction, error)
 }
 
 type NotificationSvc interface {

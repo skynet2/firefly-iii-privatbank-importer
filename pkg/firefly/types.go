@@ -1,5 +1,7 @@
 package firefly
 
+import "github.com/skynet2/firefly-iii-privatbank-importer/pkg/database"
+
 type GenericApiResponse[T any] struct {
 	Data T `json:"data"`
 }
@@ -19,13 +21,23 @@ type AccountAttributes struct {
 	Active        bool   `json:"active"`
 }
 
+type MappedTransaction struct {
+	Original     *database.Transaction
+	Transaction  *Transaction
+	MappingError error
+}
+
 type Transaction struct {
-	Type          string `json:"type"`
-	Date          string `json:"date"`
-	Amount        string `json:"amount"`
-	Description   string `json:"description"`
-	CurrencyCode  string `json:"currency_code"`
-	SourceID      string `json:"source_id"`
-	DestinationID string `json:"destination_id,omitempty"`
-	Notes         string `json:"notes"`
+	Type                string `json:"type"`
+	Date                string `json:"date"`
+	Amount              string `json:"amount"`
+	Description         string `json:"description"`
+	CurrencyCode        string `json:"currency_code"`
+	SourceID            string `json:"source_id"`
+	SourceName          string `json:"-"`
+	DestinationID       string `json:"destination_id,omitempty"`
+	DestinationName     string `json:"-"`
+	Notes               string `json:"notes"`
+	ForeignAmount       string `json:"foreign_amount,omitempty"`
+	ForeignCurrencyCode string `json:"foreign_currency_code,omitempty"`
 }

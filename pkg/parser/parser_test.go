@@ -122,8 +122,8 @@ func TestParseIncomeTransfer(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
 
-	assert.Equal(t, "123.11", resp.SourceAmount.StringFixed(2))
-	assert.Equal(t, "UAH", resp.SourceCurrency)
+	assert.Equal(t, "123.11", resp.DestinationAmount.StringFixed(2))
+	assert.Equal(t, "UAH", resp.DestinationCurrency)
 	assert.Equal(t, "Переказ через Приват24 Відправник: Імя Фамілія ПоБатькові", resp.Description)
 	assert.Equal(t, "5*20", resp.DestinationAccount)
 	assert.Equal(t, database.TransactionTypeIncome, resp.Type)

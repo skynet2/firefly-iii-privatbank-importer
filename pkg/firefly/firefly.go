@@ -3,9 +3,12 @@ package firefly
 import (
 	"context"
 	"os"
+	"time"
 
 	"github.com/cockroachdb/errors"
 	"github.com/imroc/req/v3"
+
+	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/database"
 )
 
 type Firefly struct {
@@ -46,6 +49,101 @@ func (f *Firefly) ListAccounts(ctx context.Context) ([]*Account, error) {
 	}
 
 	return apiResp.Data, nil
+}
+
+func (f *Firefly) MapTransactions(
+	ctx context.Context,
+	transactions []*database.Transaction,
+) ([]*MappedTransaction, error) {
+	accounts, err := f.ListAccounts(ctx)
+	if err != nil {
+		return nil, err
+	}
+	accountByAccountNumber := map[string]*Account{}
+	for _, acc := range accounts {
+		accountByAccountNumber[acc.Attributes.AccountNumber] = acc
+	}
+
+	var finalTransactions []*MappedTransaction
+	for _, tx := range transactions {
+		mapped := &MappedTransaction{
+			Original: tx,
+		}
+
+		finalTransactions = append(finalTransactions, mapped)
+		switch tx.Type {
+		case database.TransactionTypeRemoteTransfer:
+			fallthrough
+		case database.TransactionTypeExpense:
+			acc, ok := accountByAccountNumber[tx.SourceAccount]
+			if !ok {
+				mapped.MappingError = errors.Newf("account with IBAN %s not found", tx.SourceAccount)
+				continue
+			}
+
+			mapped.Transaction = &Transaction{
+				Type:         "withdrawal",
+				Date:         tx.Date.Format(time.RFC3339),
+				Amount:       tx.SourceAmount.String(),
+				Description:  tx.Description,
+				CurrencyCode: tx.SourceCurrency,
+				SourceID:     acc.Id,
+				SourceName:   acc.Attributes.Name,
+				Notes:        tx.Raw,
+			}
+		case database.TransactionTypeInternalTransfer:
+			sourceID := tx.SourceAccount
+			destinationID := tx.DestinationAccount
+
+			accSource, ok := accountByAccountNumber[sourceID]
+			if !ok {
+				mapped.MappingError = errors.Newf("source account with IBAN %s not found", sourceID)
+				continue
+			}
+
+			accDestination, ok := accountByAccountNumber[destinationID]
+			if !ok {
+				mapped.MappingError = errors.Newf("destination account with IBAN %s not found", destinationID)
+				continue
+			}
+
+			mapped.Transaction = &Transaction{
+				Type:                "transfer",
+				Date:                tx.Date.Format(time.RFC3339),
+				Amount:              tx.SourceAmount.String(),
+				Description:         tx.Description,
+				CurrencyCode:        tx.SourceCurrency,
+				SourceID:            accSource.Id,
+				SourceName:          accSource.Attributes.Name,
+				DestinationID:       accDestination.Id,
+				DestinationName:     accDestination.Attributes.Name,
+				Notes:               tx.Raw,
+				ForeignAmount:       tx.DestinationAmount.String(),
+				ForeignCurrencyCode: tx.DestinationCurrency,
+			}
+		case database.TransactionTypeIncome:
+			acc, ok := accountByAccountNumber[tx.DestinationAccount]
+			if !ok {
+				mapped.MappingError = errors.Newf("account with IBAN %s not found", tx.DestinationAccount)
+				continue
+			}
+
+			mapped.Transaction = &Transaction{
+				Type:            "income",
+				Date:            tx.Date.Format(time.RFC3339),
+				Amount:          tx.DestinationAmount.String(),
+				Description:     tx.Description,
+				CurrencyCode:    tx.DestinationCurrency,
+				DestinationID:   acc.Id,
+				DestinationName: acc.Attributes.Name,
+				Notes:           tx.Raw,
+			}
+		default:
+			mapped.MappingError = errors.Newf("unknown transaction type %d", tx.Type)
+		}
+	}
+
+	return finalTransactions, nil
 }
 
 func (f *Firefly) CreateTransactions(ctx context.Context, tx *Transaction) (*Transaction, error) {

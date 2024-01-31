@@ -11,7 +11,6 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/database"
-	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/firefly"
 )
 
 type Processor struct {
@@ -61,7 +60,10 @@ func (p *Processor) AddMessage(
 		ID:          uuid.NewString(),
 		CreatedAt:   message.OriginalDate,
 		ProcessedAt: nil,
+		IsProcessed: false,
 		Content:     message.Content,
+		ChatID:      message.ChatID,
+		MessageID:   message.MessageID,
 	})
 	if err != nil {
 		return err
@@ -81,29 +83,39 @@ func (p *Processor) Clear(
 }
 
 func (p *Processor) DryRun(ctx context.Context, message Message) error {
-	transactions, errArr, err := p.ProcessLatestMessages(ctx)
+	unMappedTransactions, errArr, err := p.ProcessLatestMessages(ctx)
+	if err != nil {
+		return err
+	}
+
+	mappedTx, err := p.fireflySvc.MapTransactions(ctx, unMappedTransactions)
 	if err != nil {
 		return err
 	}
 
 	var sb strings.Builder
-	for _, tx := range transactions {
-		ffSource := ""
-		ffDest := ""
-		if tx.FireflyTransaction != nil {
-			ffSource = tx.FireflyTransaction.SourceName
-			ffDest = tx.FireflyTransaction.DestinationName
+	for _, tx := range mappedTx {
+		sb.WriteString(fmt.Sprintf("Date: %s\n", tx.Original.Date.Format("2006-01-02 15:04")))
+		sb.WriteString(fmt.Sprintf("\nSource: %v%v", tx.Original.SourceAmount.StringFixed(2), tx.Original.SourceCurrency))
+		sb.WriteString(fmt.Sprintf("\nSource Account: %s", tx.Original.SourceAccount))
+		if tx.Transaction != nil {
+			sb.WriteString(fmt.Sprintf("\nSource [FF]: %s", tx.Transaction.SourceName))
 		}
 
-		sb.WriteString(fmt.Sprintf("%s %s %s", tx.SourceAmount, tx.SourceCurrency,
-			tx.Date.Format("2006-01-02 15:04")))
-		sb.WriteString(fmt.Sprintf("\nSource %s || %s", tx.SourceAccount, ffSource))
-		sb.WriteString(fmt.Sprintf("\nDestination %s || %s", tx.DestinationAccount, ffDest))
-		sb.WriteString(fmt.Sprintf("\nDescription: %s", tx.Description))
-		sb.WriteString(fmt.Sprintf("\nType: %v", tx.Type))
+		sb.WriteString(fmt.Sprintf("\nDestination: %v%v",
+			tx.Original.DestinationAmount.StringFixed(2), tx.Original.DestinationCurrency))
+		sb.WriteString(fmt.Sprintf("\nDestination Account: %s", tx.Original.DestinationAccount))
+		if tx.Transaction != nil {
+			sb.WriteString(fmt.Sprintf("\nDestination [FF]: %s", tx.Transaction.DestinationName))
+		}
 
-		if tx.FireflyMappingError != nil {
-			sb.WriteString(fmt.Sprintf("\nERROR: %s", tx.FireflyMappingError))
+		sb.WriteString(fmt.Sprintf("\nType: %v", tx.Original.Type))
+		if tx.Transaction != nil {
+			sb.WriteString(fmt.Sprintf("\nType [FF]: %s", tx.Transaction.Type))
+		}
+
+		if tx.MappingError != nil {
+			sb.WriteString(fmt.Sprintf("\nERROR: %s", tx.MappingError))
 		}
 		sb.WriteString("\n====================\n")
 	}
@@ -162,76 +174,6 @@ func (p *Processor) Mapper(
 	ctx context.Context,
 	transactions []*database.Transaction,
 ) ([]*database.Transaction, error) {
-	accounts, err := p.fireflySvc.ListAccounts(ctx)
-	if err != nil {
-		return nil, err
-	}
-	accountByAccountNumber := map[string]*firefly.Account{}
-	for _, acc := range accounts {
-		accountByAccountNumber[acc.Attributes.AccountNumber] = acc
-	}
-
-	for _, tx := range transactions {
-		switch tx.Type {
-		case database.TransactionTypeRemoteTransfer:
-			fallthrough
-		case database.TransactionTypeExpense:
-			acc, ok := accountByAccountNumber[tx.SourceAccount]
-			if !ok {
-				tx.FireflyMappingError = errors.Newf("account with IBAN %s not found", tx.SourceAccount)
-				continue
-			}
-
-			tx.FireflyTransaction = &database.FireflyTransaction{
-				Type:        "withdrawal",
-				SourceID:    acc.Id,
-				SourceName:  acc.Attributes.Name,
-				Description: tx.Description,
-				Notes:       tx.Raw,
-			}
-		case database.TransactionTypeInternalTransfer:
-			sourceID := tx.SourceAccount
-			destinationID := tx.DestinationAccount
-
-			accSource, ok := accountByAccountNumber[sourceID]
-			if !ok {
-				tx.FireflyMappingError = errors.Newf("source account with IBAN %s not found", sourceID)
-				continue
-			}
-
-			accDestination, ok := accountByAccountNumber[destinationID]
-			if !ok {
-				tx.FireflyMappingError = errors.Newf("destination account with IBAN %s not found", destinationID)
-				continue
-			}
-
-			tx.FireflyTransaction = &database.FireflyTransaction{
-				Type:            "transfer",
-				SourceID:        accSource.Id,
-				SourceName:      accSource.Attributes.Name,
-				DestinationID:   accDestination.Id,
-				DestinationName: accDestination.Attributes.Name,
-				Description:     tx.Description,
-				Notes:           tx.Raw,
-			}
-		case database.TransactionTypeIncome:
-			acc, ok := accountByAccountNumber[tx.DestinationAccount]
-			if !ok {
-				tx.FireflyMappingError = errors.Newf("account with IBAN %s not found", tx.DestinationAccount)
-				continue
-			}
-
-			tx.FireflyTransaction = &database.FireflyTransaction{
-				Type:            "income",
-				DestinationID:   acc.Id,
-				DestinationName: acc.Attributes.Name,
-				Description:     tx.Description,
-				Notes:           tx.Raw,
-			}
-		default:
-			tx.FireflyMappingError = errors.Newf("unknown transaction type %d", tx.Type)
-		}
-	}
 
 	return transactions, nil
 }

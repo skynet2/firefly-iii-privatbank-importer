@@ -12,6 +12,9 @@ type Message struct {
 	ProcessedAt *time.Time `json:"processedAt"`
 	IsProcessed bool       `json:"isProcessed"`
 	Content     string     `json:"content"`
+
+	ChatID    int64 `json:"chatId"`
+	MessageID int64 `json:"messageId"`
 }
 
 type Transaction struct {
@@ -31,21 +34,8 @@ type Transaction struct {
 	DateFromMessage    string
 	Raw                string
 
-	FireflyTransaction  *FireflyTransaction
-	FireflyMappingError error
-
 	InternalTransferDirectionTo bool
 	DuplicateTransactions       []*Transaction
-}
-
-type FireflyTransaction struct {
-	Type            string
-	SourceID        string
-	SourceName      string
-	DestinationID   string
-	DestinationName string
-	Description     string
-	Notes           string
 }
 
 type TransactionType int32
