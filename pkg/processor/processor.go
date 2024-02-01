@@ -98,6 +98,13 @@ func (p *Processor) prettyPrint(
 	err error,
 	message Message,
 ) error {
+	if len(mappedTx) == 0 && len(errArr) == 0 {
+		if err = p.notificationSvc.SendMessage(ctx, message.ChatID, "No messages to process"); err != nil {
+			return err
+		}
+
+		return nil
+	}
 	var sb strings.Builder
 	for _, tx := range mappedTx {
 		if tx.IsCommitted {
