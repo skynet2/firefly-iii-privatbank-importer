@@ -15,6 +15,8 @@ type Message struct {
 
 	ChatID    int64 `json:"chatId"`
 	MessageID int64 `json:"messageId"`
+
+	PartitionKey float64 `json:"partitionKey"`
 }
 
 type Transaction struct {

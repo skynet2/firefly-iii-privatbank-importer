@@ -331,7 +331,7 @@ func (p *Processor) CommitTransaction(
 		upd.ProcessedAt = &tt
 		upd.IsProcessed = true
 
-		if err := p.repo.UpdateMessage(ctx, transaction.Original.OriginalMessage); err != nil {
+		if err := p.repo.UpdateMessage(ctx, upd); err != nil {
 			transaction.MappingError = errors.Join(transaction.MappingError,
 				errors.Wrapf(err, "failed to update message"))
 
