@@ -39,7 +39,7 @@ func (p *Parser) ParseMessages(
 		return p.ParseInternalTransfer(ctx, raw, date)
 	}
 
-	if strings.Contains(lower, "переказ через приват") { // remote transfer
+	if strings.Contains(lower, "переказ через ") { // remote transfer
 		if strings.Contains(lower, "відправник:") { // income
 			return p.ParseIncomeTransfer(ctx, raw, date)
 		}
