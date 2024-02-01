@@ -129,7 +129,7 @@ func (f *Firefly) MapTransactions(
 			}
 
 			mapped.Transaction = &Transaction{
-				Type:            "income",
+				Type:            "deposit",
 				Date:            tx.Date.Format(time.RFC3339),
 				Amount:          tx.DestinationAmount.String(),
 				Description:     tx.Description,
