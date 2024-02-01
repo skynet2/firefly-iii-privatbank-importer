@@ -252,7 +252,7 @@ func (p *Parser) ParseSimpleExpense(
 	raw = strings.ReplaceAll(raw, "\r\n", "\n")
 
 	lines := strings.Split(raw, "\n")
-	if len(lines) != simpleExpenseLinesCount {
+	if len(lines) < simpleExpenseLinesCount {
 		return nil, errors.Newf("expected %d lines, got %d", simpleExpenseLinesCount, len(lines))
 	}
 
