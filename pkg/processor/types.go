@@ -1,6 +1,8 @@
 package processor
 
-import "time"
+import (
+	"time"
+)
 
 type Message struct {
 	ID            string

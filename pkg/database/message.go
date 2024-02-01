@@ -36,6 +36,8 @@ type Transaction struct {
 
 	InternalTransferDirectionTo bool
 	DuplicateTransactions       []*Transaction
+
+	OriginalMessage *Message `json:"-"`
 }
 
 type TransactionType int32

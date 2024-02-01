@@ -11,6 +11,7 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/database"
+	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/firefly"
 )
 
 type Processor struct {
@@ -41,11 +42,11 @@ func (p *Processor) ProcessMessage(
 	lower := strings.ToLower(message.Content)
 
 	switch lower {
-	case "dry":
+	case "/dry":
 		return p.DryRun(ctx, message)
-	case "commit":
+	case "/commit":
 		return p.Commit(ctx, message)
-	case "clear":
+	case "/clear":
 		return p.Clear(ctx)
 	default:
 		return p.AddMessage(ctx, message)
@@ -82,17 +83,13 @@ func (p *Processor) Clear(
 	return p.repo.Clear(ctx)
 }
 
-func (p *Processor) DryRun(ctx context.Context, message Message) error {
-	unMappedTransactions, errArr, err := p.ProcessLatestMessages(ctx)
-	if err != nil {
-		return err
-	}
-
-	mappedTx, err := p.fireflySvc.MapTransactions(ctx, unMappedTransactions)
-	if err != nil {
-		return err
-	}
-
+func (p *Processor) prettyPrint(
+	ctx context.Context,
+	mappedTx []*firefly.MappedTransaction,
+	errArr []error,
+	err error,
+	message Message,
+) error {
 	var sb strings.Builder
 	for _, tx := range mappedTx {
 		sb.WriteString(fmt.Sprintf("Date: %s\n", tx.Original.Date.Format("2006-01-02 15:04")))
@@ -101,6 +98,7 @@ func (p *Processor) DryRun(ctx context.Context, message Message) error {
 		if tx.Transaction != nil {
 			sb.WriteString(fmt.Sprintf("\nSource [FF]: %s", tx.Transaction.SourceName))
 		}
+		sb.WriteString("\n")
 
 		sb.WriteString(fmt.Sprintf("\nDestination: %v%v",
 			tx.Original.DestinationAmount.StringFixed(2), tx.Original.DestinationCurrency))
@@ -108,11 +106,15 @@ func (p *Processor) DryRun(ctx context.Context, message Message) error {
 		if tx.Transaction != nil {
 			sb.WriteString(fmt.Sprintf("\nDestination [FF]: %s", tx.Transaction.DestinationName))
 		}
+		sb.WriteString("\n")
 
 		sb.WriteString(fmt.Sprintf("\nType: %v", tx.Original.Type))
 		if tx.Transaction != nil {
 			sb.WriteString(fmt.Sprintf("\nType [FF]: %s", tx.Transaction.Type))
 		}
+		sb.WriteString("\n")
+
+		sb.WriteString(fmt.Sprintf("\nDescription: %s", tx.Original.Description))
 
 		if tx.MappingError != nil {
 			sb.WriteString(fmt.Sprintf("\nERROR: %s", tx.MappingError))
@@ -134,9 +136,22 @@ func (p *Processor) DryRun(ctx context.Context, message Message) error {
 	return nil
 }
 
+func (p *Processor) DryRun(ctx context.Context, message Message) error {
+	mappedTx, errArr, err := p.ProcessLatestMessages(ctx)
+	if err != nil {
+		return err
+	}
+
+	if err = p.prettyPrint(ctx, mappedTx, errArr, err, message); err != nil {
+		p.SendErrorMessage(ctx, err, message)
+	}
+
+	return nil
+}
+
 func (p *Processor) ProcessLatestMessages(
 	ctx context.Context,
-) ([]*database.Transaction, []error, error) {
+) ([]*firefly.MappedTransaction, []error, error) {
 	messages, err := p.repo.GetLatestMessages(ctx)
 	if err != nil {
 		return nil, nil, err
@@ -154,6 +169,7 @@ func (p *Processor) ProcessLatestMessages(
 			continue
 		}
 
+		transaction.OriginalMessage = message
 		transactions = append(transactions, transaction)
 	}
 
@@ -162,20 +178,12 @@ func (p *Processor) ProcessLatestMessages(
 		return nil, nil, err
 	}
 
-	transactions, err = p.Mapper(ctx, transactions)
+	mappedTransactions, err := p.fireflySvc.MapTransactions(ctx, transactions)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return transactions, parseErrorsArr, nil
-}
-
-func (p *Processor) Mapper(
-	ctx context.Context,
-	transactions []*database.Transaction,
-) ([]*database.Transaction, error) {
-
-	return transactions, nil
+	return mappedTransactions, parseErrorsArr, nil
 }
 
 func (p *Processor) Merge(
@@ -240,7 +248,12 @@ func (p *Processor) Merge(
 }
 
 func (p *Processor) Commit(ctx context.Context, message Message) error {
-	//transactions, errArr, err := p.ProcessLatestMessages(ctx)
+	transactions, errArr, err := p.ProcessLatestMessages(ctx)
+	if err != nil {
+		p.SendErrorMessage(ctx, err, message)
+		return err
+	}
+
 	//if err != nil {
 	//	return err
 	//}
@@ -251,4 +264,11 @@ func (p *Processor) Commit(ctx context.Context, message Message) error {
 	//
 	//return nil
 	return nil
+}
+
+func (p *Processor) SendErrorMessage(ctx context.Context, err error, message Message) {
+	if err = p.notificationSvc.SendMessage(ctx, message.ChatID,
+		fmt.Sprintf("Failed to process command: %v\n Error: %v", message.Content, err)); err != nil {
+		zerolog.Ctx(ctx).Error().Err(err).Msg("failed to send message")
+	}
 }

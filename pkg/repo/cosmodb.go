@@ -137,3 +137,21 @@ func (c *Cosmo) Clear(ctx context.Context) error {
 
 	return err
 }
+
+func (s *Cosmo) UpdateMessage(ctx context.Context, message database.Message) error {
+	container, err := s.getMessageContainer()
+	if err != nil {
+		return err
+	}
+
+	partitionKey := azcosmos.NewPartitionKeyBool(message.IsProcessed)
+
+	bytes, err := json.Marshal(message)
+	if err != nil {
+		return err
+	}
+
+	_, err = container.UpsertItem(ctx, partitionKey, bytes, nil)
+
+	return err
+}
