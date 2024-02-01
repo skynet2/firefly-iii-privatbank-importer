@@ -274,7 +274,7 @@ func (p *Processor) Commit(ctx context.Context, message Message) error {
 		p.CommitTransaction(ctx, tx, message)
 	}
 
-	if err = p.prettyPrint(ctx, nil, errArr, err, message); err != nil {
+	if err = p.prettyPrint(ctx, transactions, errArr, err, message); err != nil {
 		p.SendErrorMessage(ctx, err, message)
 	}
 
@@ -304,12 +304,21 @@ func (p *Processor) CommitTransaction(
 		reaction = failedToCommit
 	}
 
-	if err := p.notificationSvc.React(ctx,
-		transaction.Original.OriginalMessage.ChatID,
-		transaction.Original.OriginalMessage.MessageID,
-		reaction,
-	); err != nil {
-		zerolog.Ctx(ctx).Error().Err(err).Msg("failed to react to message")
+	toUpdate := []*database.Message{
+		transaction.Original.OriginalMessage,
+	}
+	for _, tx := range transaction.Original.DuplicateTransactions {
+		toUpdate = append(toUpdate, tx.OriginalMessage)
+	}
+
+	for _, upd := range toUpdate {
+		if err := p.notificationSvc.React(ctx,
+			upd.ChatID,
+			upd.MessageID,
+			reaction,
+		); err != nil {
+			zerolog.Ctx(ctx).Error().Err(err).Msg("failed to react to message")
+		}
 	}
 
 	if transaction.MappingError != nil {
@@ -317,13 +326,6 @@ func (p *Processor) CommitTransaction(
 	}
 
 	tt := time.Now().UTC()
-
-	toUpdate := []*database.Message{
-		transaction.Original.OriginalMessage,
-	}
-	for _, tx := range transaction.Original.DuplicateTransactions {
-		toUpdate = append(toUpdate, tx.OriginalMessage)
-	}
 
 	for _, upd := range toUpdate {
 		upd.ProcessedAt = &tt

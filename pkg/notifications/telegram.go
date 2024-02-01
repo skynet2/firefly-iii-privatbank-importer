@@ -27,6 +27,9 @@ func (t *Telegram) SendMessage(
 	chatID int64,
 	text string,
 ) error {
+	if len(text) > 4096 {
+		text = text[:4090]
+	}
 	resp, err := t.client.R().
 		SetBody(map[string]interface{}{
 			"chat_id": chatID,
