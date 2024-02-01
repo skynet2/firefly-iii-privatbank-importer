@@ -138,8 +138,8 @@ func (c *Cosmo) Clear(ctx context.Context) error {
 	return err
 }
 
-func (s *Cosmo) UpdateMessage(ctx context.Context, message database.Message) error {
-	container, err := s.getMessageContainer()
+func (c *Cosmo) UpdateMessage(ctx context.Context, message *database.Message) error {
+	container, err := c.getMessageContainer()
 	if err != nil {
 		return err
 	}

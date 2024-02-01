@@ -53,6 +53,7 @@ func (h *Handler) ServeHTTP(
 ) {
 	if apiKey != r.URL.Query().Get("api_key") {
 		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte("unauthorized"))
 		return
 	}
 
@@ -61,6 +62,7 @@ func (h *Handler) ServeHTTP(
 	b, err := io.ReadAll(r.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(err.Error()))
 		return
 	}
 

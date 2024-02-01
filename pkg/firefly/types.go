@@ -25,6 +25,7 @@ type MappedTransaction struct {
 	Original     *database.Transaction
 	Transaction  *Transaction
 	MappingError error
+	IsCommitted  bool
 }
 
 type Transaction struct {

@@ -40,7 +40,7 @@ func (t *Telegram) SendMessage(
 	}
 
 	if resp.IsErrorState() {
-		return fmt.Errorf("unexpected status code: %v", resp.StatusCode)
+		return fmt.Errorf("unexpected status code: %v and message %v", resp.StatusCode, resp.String())
 	}
 
 	return nil
@@ -50,6 +50,7 @@ func (t *Telegram) React(
 	ctx context.Context,
 	chatID int64,
 	messageID int64,
+	reaction string,
 ) error {
 	resp, err := t.client.R().
 		SetBody(map[string]interface{}{
@@ -58,7 +59,7 @@ func (t *Telegram) React(
 			"reaction": []map[string]interface{}{
 				{
 					"type":  "emoji",
-					"emoji": "🤝",
+					"emoji": reaction,
 				},
 			},
 		}).
@@ -70,7 +71,7 @@ func (t *Telegram) React(
 	}
 
 	if resp.IsErrorState() {
-		return fmt.Errorf("unexpected status code: %v", resp.StatusCode)
+		return fmt.Errorf("unexpected status code: %v and message %v", resp.StatusCode, resp.String())
 	}
 
 	return nil

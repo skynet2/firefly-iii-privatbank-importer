@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/cockroachdb/errors"
 	"github.com/google/uuid"
@@ -12,6 +13,12 @@ import (
 
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/database"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/firefly"
+)
+
+const (
+	reactionAccepted  = "🤝"
+	reactionCommitted = "🍾"
+	failedToCommit    = "🤬"
 )
 
 type Processor struct {
@@ -41,7 +48,8 @@ func (p *Processor) ProcessMessage(
 ) error {
 	lower := strings.ToLower(message.Content)
 
-	switch lower {
+	trimmed := strings.Split(lower, "@")
+	switch trimmed[0] {
 	case "/dry":
 		return p.DryRun(ctx, message)
 	case "/commit":
@@ -70,7 +78,7 @@ func (p *Processor) AddMessage(
 		return err
 	}
 
-	if err = p.notificationSvc.React(ctx, message.ChatID, message.MessageID); err != nil {
+	if err = p.notificationSvc.React(ctx, message.ChatID, message.MessageID, reactionAccepted); err != nil {
 		zerolog.Ctx(ctx).Error().Err(err).Msg("failed to react to message")
 	}
 
@@ -92,6 +100,12 @@ func (p *Processor) prettyPrint(
 ) error {
 	var sb strings.Builder
 	for _, tx := range mappedTx {
+		if tx.IsCommitted {
+			sb.WriteString("Committed: ✅\n")
+		}
+		if tx.MappingError != nil {
+			sb.WriteString("Has Error: ❌\n")
+		}
 		sb.WriteString(fmt.Sprintf("Date: %s\n", tx.Original.Date.Format("2006-01-02 15:04")))
 		sb.WriteString(fmt.Sprintf("\nSource: %v%v", tx.Original.SourceAmount.StringFixed(2), tx.Original.SourceCurrency))
 		sb.WriteString(fmt.Sprintf("\nSource Account: %s", tx.Original.SourceAccount))
@@ -139,7 +153,9 @@ func (p *Processor) prettyPrint(
 func (p *Processor) DryRun(ctx context.Context, message Message) error {
 	mappedTx, errArr, err := p.ProcessLatestMessages(ctx)
 	if err != nil {
-		return err
+		p.SendErrorMessage(ctx, err, message)
+
+		return nil
 	}
 
 	if err = p.prettyPrint(ctx, mappedTx, errArr, err, message); err != nil {
@@ -162,7 +178,7 @@ func (p *Processor) ProcessLatestMessages(
 
 	for _, message := range messages {
 		transaction, parserErr := p.parser.ParseMessages(ctx, message.Content, message.CreatedAt)
-		if err != nil {
+		if parserErr != nil {
 			parseErrorsArr = append(parseErrorsArr, errors.Join(
 				errors.Wrapf(parserErr, "message: %s", message.Content)))
 
@@ -254,16 +270,72 @@ func (p *Processor) Commit(ctx context.Context, message Message) error {
 		return err
 	}
 
-	//if err != nil {
-	//	return err
-	//}
-	//
-	//for _, tx := range transactions {
-	//
-	//}
-	//
-	//return nil
+	for _, tx := range transactions {
+		p.CommitTransaction(ctx, tx, message)
+	}
+
+	if err = p.prettyPrint(ctx, nil, errArr, err, message); err != nil {
+		p.SendErrorMessage(ctx, err, message)
+	}
+
 	return nil
+}
+
+func (p *Processor) CommitTransaction(
+	ctx context.Context,
+	transaction *firefly.MappedTransaction,
+	requestMessage Message,
+) {
+	if transaction.Original.OriginalMessage == nil {
+		transaction.MappingError = errors.Join(transaction.MappingError,
+			errors.Newf("original message is nil"))
+
+		return
+	}
+
+	transaction.IsCommitted = true
+	if _, err := p.fireflySvc.CreateTransactions(ctx, transaction.Transaction); err != nil {
+		transaction.MappingError = errors.Join(transaction.MappingError,
+			errors.Wrapf(err, "failed to commit transaction"))
+	}
+
+	reaction := reactionCommitted
+	if transaction.MappingError != nil {
+		reaction = failedToCommit
+	}
+
+	if err := p.notificationSvc.React(ctx,
+		transaction.Original.OriginalMessage.ChatID,
+		transaction.Original.OriginalMessage.MessageID,
+		reaction,
+	); err != nil {
+		zerolog.Ctx(ctx).Error().Err(err).Msg("failed to react to message")
+	}
+
+	if transaction.MappingError != nil {
+		return
+	}
+
+	tt := time.Now().UTC()
+
+	toUpdate := []*database.Message{
+		transaction.Original.OriginalMessage,
+	}
+	for _, tx := range transaction.Original.DuplicateTransactions {
+		toUpdate = append(toUpdate, tx.OriginalMessage)
+	}
+
+	for _, upd := range toUpdate {
+		upd.ProcessedAt = &tt
+		upd.IsProcessed = true
+
+		if err := p.repo.UpdateMessage(ctx, transaction.Original.OriginalMessage); err != nil {
+			transaction.MappingError = errors.Join(transaction.MappingError,
+				errors.Wrapf(err, "failed to update message"))
+
+			p.SendErrorMessage(ctx, transaction.MappingError, requestMessage)
+		}
+	}
 }
 
 func (p *Processor) SendErrorMessage(ctx context.Context, err error, message Message) {

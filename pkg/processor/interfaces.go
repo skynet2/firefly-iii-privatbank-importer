@@ -12,6 +12,7 @@ type Repo interface {
 	AddMessage(ctx context.Context, message database.Message) error
 	GetLatestMessages(ctx context.Context) ([]*database.Message, error)
 	Clear(ctx context.Context) error
+	UpdateMessage(ctx context.Context, message *database.Message) error
 }
 
 type Parser interface {
@@ -28,6 +29,7 @@ type Firefly interface {
 		ctx context.Context,
 		transactions []*database.Transaction,
 	) ([]*firefly.MappedTransaction, error)
+	CreateTransactions(ctx context.Context, tx *firefly.Transaction) (*firefly.Transaction, error)
 }
 
 type NotificationSvc interface {
@@ -35,6 +37,7 @@ type NotificationSvc interface {
 		ctx context.Context,
 		chatID int64,
 		messageID int64,
+		reaction string,
 	) error
 
 	SendMessage(
