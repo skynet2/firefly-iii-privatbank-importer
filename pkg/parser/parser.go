@@ -50,7 +50,7 @@ func (p *Parser) ParseMessages(
 }
 
 var (
-	simpleExpenseRegex        = regexp.MustCompile("(\\d+.?\\d+)([A-Z]{3}) (.*)$")
+	simpleExpenseRegex        = regexp.MustCompile(`(\d+.?\d+)([A-Z]{3}) (.*)$`)
 	remoteTransferRegex       = simpleExpenseRegex
 	incomeTransferRegex       = simpleExpenseRegex
 	internalTransferToRegex   = regexp.MustCompile(`(\d+.?\d+)([A-Z]{3}) (Переказ на свою карту (\d+\*\*\d+) (.*))$`)

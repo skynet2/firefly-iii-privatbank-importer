@@ -78,6 +78,9 @@ func (c *Cosmo) AddMessage(ctx context.Context, message database.Message) error 
 	}
 
 	container, err := c.getMessageContainer()
+	if err != nil {
+		return err
+	}
 
 	_, err = container.CreateItem(ctx, partitionKey, bytes, nil)
 	if err != nil {

@@ -5,3 +5,12 @@ build:
 .PHONY: azure-deploy
 azure-deploy: build
 	@cd cmd/server/.azure && cp -a . ../dist/
+
+
+.PHONY: generate
+generate:
+	go generate ./...
+
+.PHONY: lint
+lint: generate
+	golangci-lint run

@@ -3,6 +3,7 @@ package firefly
 import (
 	"context"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/cockroachdb/errors"
@@ -61,7 +62,24 @@ func (f *Firefly) MapTransactions(
 	}
 	accountByAccountNumber := map[string]*Account{}
 	for _, acc := range accounts {
-		accountByAccountNumber[acc.Attributes.AccountNumber] = acc
+		sp := strings.Split(acc.Attributes.AccountNumber, ",")
+		if len(sp) == 0 {
+			continue
+		}
+
+		for _, s := range sp {
+			s = strings.TrimSpace(s)
+			if s == "" {
+				continue
+			}
+
+			_, ok := accountByAccountNumber[s]
+			if ok {
+				return nil, errors.Newf("duplicate account number %s", s)
+			}
+
+			accountByAccountNumber[s] = acc
+		}
 	}
 
 	var finalTransactions []*MappedTransaction

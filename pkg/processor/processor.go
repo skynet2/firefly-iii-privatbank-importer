@@ -95,11 +95,10 @@ func (p *Processor) prettyPrint(
 	ctx context.Context,
 	mappedTx []*firefly.MappedTransaction,
 	errArr []error,
-	err error,
 	message Message,
 ) error {
 	if len(mappedTx) == 0 && len(errArr) == 0 {
-		if err = p.notificationSvc.SendMessage(ctx, message.ChatID, "No messages to process"); err != nil {
+		if err := p.notificationSvc.SendMessage(ctx, message.ChatID, "No messages to process"); err != nil {
 			return err
 		}
 
@@ -145,12 +144,12 @@ func (p *Processor) prettyPrint(
 
 	if len(errArr) > 0 {
 		sb.WriteString("\n\nErrors:\n")
-		for _, err = range errArr {
+		for _, err := range errArr {
 			sb.WriteString(fmt.Sprintf("%s\n", err))
 		}
 	}
 
-	if err = p.notificationSvc.SendMessage(ctx, message.ChatID, sb.String()); err != nil {
+	if err := p.notificationSvc.SendMessage(ctx, message.ChatID, sb.String()); err != nil {
 		return err
 	}
 
@@ -165,7 +164,7 @@ func (p *Processor) DryRun(ctx context.Context, message Message) error {
 		return nil
 	}
 
-	if err = p.prettyPrint(ctx, mappedTx, errArr, err, message); err != nil {
+	if err = p.prettyPrint(ctx, mappedTx, errArr, message); err != nil {
 		p.SendErrorMessage(ctx, err, message)
 	}
 
@@ -281,7 +280,7 @@ func (p *Processor) Commit(ctx context.Context, message Message) error {
 		p.CommitTransaction(ctx, tx, message)
 	}
 
-	if err = p.prettyPrint(ctx, transactions, errArr, err, message); err != nil {
+	if err = p.prettyPrint(ctx, transactions, errArr, message); err != nil {
 		p.SendErrorMessage(ctx, err, message)
 	}
 
