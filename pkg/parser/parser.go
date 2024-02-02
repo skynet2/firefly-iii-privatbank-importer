@@ -51,6 +51,7 @@ func (p *Parser) ParseMessages(
 
 var (
 	simpleExpenseRegex        = regexp.MustCompile(`(\d+.?\d+)([A-Z]{3}) (.*)$`)
+	balanceRegex              = regexp.MustCompile(`Бал\. .*(\w{3})`)
 	remoteTransferRegex       = simpleExpenseRegex
 	incomeTransferRegex       = simpleExpenseRegex
 	internalTransferToRegex   = regexp.MustCompile(`(\d+.?\d+)([A-Z]{3}) (Переказ на свою карту (\d+\*\*\d+) (.*))$`)
@@ -280,6 +281,43 @@ func (p *Parser) ParseSimpleExpense(
 		Type:           database.TransactionTypeExpense,
 		SourceAccount:  source[0],
 		Raw:            raw,
+	}
+
+	for _, line := range lines {
+		if strings.Contains(strings.ToLower(line), "курс ") { // apply exchange rate logic
+			sp := strings.Split(line, " ")
+
+			if len(sp) != 3 {
+				return nil, errors.Newf("expected 3 parts for курс, got %v", spew.Sdump(sp))
+			}
+
+			currencies := strings.Split(sp[2], "/")
+			if len(currencies) != 2 {
+				return nil, errors.Newf("expected 2 currencies, got %v", spew.Sdump(currencies))
+			}
+
+			rate, rateErr := decimal.NewFromString(sp[1])
+			if err != nil {
+				return nil, errors.Join(rateErr, errors.Newf("failed to parse rate %s", sp[1]))
+			}
+
+			finalTx.DestinationCurrency = finalTx.SourceCurrency
+			finalTx.DestinationAmount = finalTx.SourceAmount
+
+			finalTx.SourceCurrency = currencies[0]
+			finalTx.SourceAmount = amount.Mul(rate)
+		}
+	}
+
+	for _, line := range lines {
+		balMatch := balanceRegex.FindStringSubmatch(line)
+		if len(balMatch) != 2 {
+			continue
+		}
+
+		if balMatch[1] != finalTx.SourceCurrency {
+			return nil, errors.Newf("currency mismatch: %s != %s", balMatch[1], finalTx.SourceCurrency)
+		}
 	}
 
 	return finalTx, nil

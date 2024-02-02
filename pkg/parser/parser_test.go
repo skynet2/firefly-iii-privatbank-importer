@@ -41,8 +41,11 @@ func TestParseSimpleExpense2(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
 
-	assert.Equal(t, "83.69", resp.SourceAmount.String())
-	assert.Equal(t, "PLN", resp.SourceCurrency)
+	assert.Equal(t, "83.69", resp.DestinationAmount.String())
+	assert.Equal(t, "PLN", resp.DestinationCurrency)
+
+	assert.Equal(t, "21.41", resp.SourceAmount.StringFixed(2))
+	assert.Equal(t, "USD", resp.SourceCurrency)
 	assert.Equal(t, "Інтернет-магазини. AliExpress", resp.Description)
 	assert.Equal(t, "4*67", resp.SourceAccount)
 	assert.Equal(t, database.TransactionTypeExpense, resp.Type)

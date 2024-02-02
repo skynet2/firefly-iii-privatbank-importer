@@ -8,6 +8,7 @@ import (
 
 	"github.com/cockroachdb/errors"
 	"github.com/imroc/req/v3"
+	"github.com/shopspring/decimal"
 
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/database"
 )
@@ -100,14 +101,19 @@ func (f *Firefly) MapTransactions(
 			}
 
 			mapped.Transaction = &Transaction{
-				Type:         "withdrawal",
-				Date:         tx.Date.Format(time.RFC3339),
-				Amount:       tx.SourceAmount.String(),
-				Description:  tx.Description,
-				CurrencyCode: tx.SourceCurrency,
-				SourceID:     acc.Id,
-				SourceName:   acc.Attributes.Name,
-				Notes:        tx.Raw,
+				Type:                "withdrawal",
+				Date:                tx.Date.Format(time.RFC3339),
+				Amount:              tx.SourceAmount.StringFixed(2),
+				Description:         tx.Description,
+				CurrencyCode:        tx.SourceCurrency,
+				SourceID:            acc.Id,
+				SourceName:          acc.Attributes.Name,
+				Notes:               tx.Raw,
+				ForeignCurrencyCode: tx.DestinationCurrency,
+			}
+
+			if tx.DestinationAmount.GreaterThan(decimal.Zero) {
+				mapped.Transaction.ForeignAmount = tx.DestinationAmount.StringFixed(2)
 			}
 		case database.TransactionTypeInternalTransfer:
 			sourceID := tx.SourceAccount
@@ -128,7 +134,7 @@ func (f *Firefly) MapTransactions(
 			mapped.Transaction = &Transaction{
 				Type:                "transfer",
 				Date:                tx.Date.Format(time.RFC3339),
-				Amount:              tx.SourceAmount.String(),
+				Amount:              tx.SourceAmount.StringFixed(2),
 				Description:         tx.Description,
 				CurrencyCode:        tx.SourceCurrency,
 				SourceID:            accSource.Id,
@@ -136,7 +142,7 @@ func (f *Firefly) MapTransactions(
 				DestinationID:       accDestination.Id,
 				DestinationName:     accDestination.Attributes.Name,
 				Notes:               tx.Raw,
-				ForeignAmount:       tx.DestinationAmount.String(),
+				ForeignAmount:       tx.DestinationAmount.StringFixed(2),
 				ForeignCurrencyCode: tx.DestinationCurrency,
 			}
 		case database.TransactionTypeIncome:
@@ -149,7 +155,7 @@ func (f *Firefly) MapTransactions(
 			mapped.Transaction = &Transaction{
 				Type:            "deposit",
 				Date:            tx.Date.Format(time.RFC3339),
-				Amount:          tx.DestinationAmount.String(),
+				Amount:          tx.DestinationAmount.StringFixed(2),
 				Description:     tx.Description,
 				CurrencyCode:    tx.DestinationCurrency,
 				DestinationID:   acc.Id,
