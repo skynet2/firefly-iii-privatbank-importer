@@ -69,6 +69,25 @@ func TestParseRemoteTransfer(t *testing.T) {
 	assert.Equal(t, database.TransactionTypeRemoteTransfer, resp.Type)
 }
 
+func TestParseRemoteTransfer3(t *testing.T) {
+	input := `715.06UAH Переказ зі своєї карти
+5*20 19:29
+Бал. 111.29UAH
+Кред. лiмiт 111.0UAH`
+
+	srv := parser.NewParser()
+
+	resp, err := srv.ParseMessages(context.TODO(), input, time.Now())
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+
+	assert.Equal(t, "715.06", resp.SourceAmount.StringFixed(2))
+	assert.Equal(t, "UAH", resp.SourceCurrency)
+	assert.Equal(t, "Переказ зі своєї карти", resp.Description)
+	assert.Equal(t, "5*20", resp.SourceAccount)
+	assert.Equal(t, database.TransactionTypeRemoteTransfer, resp.Type)
+}
+
 func TestParseRemoteTransfer2(t *testing.T) {
 	input := `4000.00UAH Переказ через додаток Приват24. Одержувач: ХХ УУ ММ
 5*20 12:58
