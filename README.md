@@ -1,6 +1,6 @@
 # firefly-iii-privatbank-importer
 
-![build workflow](https://github.com/skynet2/firefly-iii-privatbank-importer/actions/workflows/build.yaml/badge.svg?branch=master)
+![build workflow](https://github.com/skynet2/firefly-iii-privatbank-importer/actions/workflows/general.yaml/badge.svg?branch=master)
 [![codecov](https://codecov.io/gh/skynet2/firefly-iii-privatbank-importer/branch/master/graph/badge.svg?token=5QV4Z8NR6V)](https://codecov.io/gh/skynet2/firefly-iii-privatbank-importer)
 [![go-report](https://img.shields.io/badge/go%20report-A+-brightgreen.svg?style=flat)](https://img.shields.io/badge/go%20report-A+-brightgreen.svg?style=flat)
 [![PkgGoDev](https://pkg.go.dev/badge/github.com/skynet2/firefly-iii-privatbank-importer)](https://pkg.go.dev/github.com/skynet2/firefly-iii-privatbank-importer?tab=doc)
