@@ -174,3 +174,12 @@ func TestParibasBetweenAccounts(t *testing.T) {
 	assert.Equal(t, "2024-02-01 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
 	assert.Equal(t, "Przelew środków", resp[0].Description)
 }
+
+func TestSplitExcel(t *testing.T) {
+	srv := parser.NewParibas()
+
+	resp, err := srv.SplitExcel(context.TODO(), betweenAccounts)
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Len(t, resp, 2)
+}

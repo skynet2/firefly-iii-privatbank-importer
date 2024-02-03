@@ -25,6 +25,10 @@ const (
 type Parser struct {
 }
 
+func (p *Parser) SplitExcel(_ context.Context, data []byte) ([][]byte, error) {
+	return nil, errors.New("not supported")
+}
+
 func NewParser() *Parser {
 	return &Parser{}
 }

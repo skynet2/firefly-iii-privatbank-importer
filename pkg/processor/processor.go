@@ -2,6 +2,7 @@ package processor
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -67,7 +68,13 @@ func (p *Processor) ProcessMessage(
 	case "/clear":
 		return p.Clear(ctx)
 	default:
-		return p.AddMessage(ctx, message)
+		if err := p.AddMessage(ctx, message); err != nil {
+			p.SendErrorMessage(ctx, err, message)
+
+			return err
+		}
+
+		return nil
 	}
 }
 
@@ -75,22 +82,55 @@ func (p *Processor) AddMessage(
 	ctx context.Context,
 	message Message,
 ) error {
-	err := p.repo.AddMessage(ctx, database.Message{
-		ID:                uuid.NewString(),
-		CreatedAt:         message.OriginalDate,
-		ProcessedAt:       nil,
-		IsProcessed:       false,
-		Content:           message.Content,
-		FileID:            message.FileID,
-		ChatID:            message.ChatID,
-		MessageID:         message.MessageID,
-		TransactionSource: message.TransactionSource,
-	})
-	if err != nil {
-		return err
+	var targetMessages []database.Message
+
+	if message.FileID != "" {
+		fileData, fileErr := p.notificationSvc.GetFile(ctx, message.FileID)
+		if fileErr != nil {
+			return errors.Wrapf(fileErr, "failed to get file")
+		}
+
+		splitted, err := p.parsers[message.TransactionSource].SplitExcel(ctx, fileData)
+		if err != nil {
+			return errors.Wrapf(err, "failed to split file")
+		}
+
+		for _, s := range splitted {
+			targetMessages = append(targetMessages, database.Message{
+				ID:                uuid.NewString(),
+				CreatedAt:         message.OriginalDate,
+				ProcessedAt:       nil,
+				IsProcessed:       false,
+				Content:           hex.EncodeToString(s),
+				FileID:            message.FileID,
+				ChatID:            message.ChatID,
+				MessageID:         message.MessageID,
+				TransactionSource: message.TransactionSource,
+			})
+		}
+
+	} else {
+		targetMessages = append(targetMessages, database.Message{
+			ID:                uuid.NewString(),
+			CreatedAt:         message.OriginalDate,
+			ProcessedAt:       nil,
+			IsProcessed:       false,
+			Content:           message.Content,
+			FileID:            message.FileID,
+			ChatID:            message.ChatID,
+			MessageID:         message.MessageID,
+			TransactionSource: message.TransactionSource,
+		})
 	}
 
-	if err = p.notificationSvc.React(ctx, message.ChatID, message.MessageID, reactionAccepted); err != nil {
+	for _, m := range targetMessages {
+		err := p.repo.AddMessage(ctx, m)
+		if err != nil {
+			return err
+		}
+	}
+
+	if err := p.notificationSvc.React(ctx, message.ChatID, message.MessageID, reactionAccepted); err != nil {
 		zerolog.Ctx(ctx).Error().Err(err).Msg("failed to react to message")
 	}
 
@@ -228,15 +268,6 @@ func (p *Processor) ProcessLatestMessages(
 		rec := &parser2.Record{
 			Message: message,
 			Data:    []byte(message.Content),
-		}
-
-		if message.FileID != "" {
-			fileData, fileErr := p.notificationSvc.GetFile(ctx, message.FileID)
-			if fileErr != nil {
-				return nil, nil, errors.Wrapf(fileErr, "failed to get file")
-			}
-
-			rec.Data = fileData
 		}
 
 		dataToProcess = append(dataToProcess, rec)

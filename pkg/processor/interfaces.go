@@ -21,6 +21,11 @@ type Parser interface {
 		raw []*parser2.Record,
 	) ([]*database.Transaction, error)
 	Type() database.TransactionSource
+
+	SplitExcel(
+		_ context.Context,
+		data []byte,
+	) ([][]byte, error)
 }
 
 type Firefly interface {
