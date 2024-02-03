@@ -11,17 +11,18 @@ type Message struct {
 	CreatedAt   time.Time  `json:"createdAt"`
 	ProcessedAt *time.Time `json:"processedAt"`
 	IsProcessed bool       `json:"isProcessed"`
-	Content     string     `json:"content"`
+	Content     []byte     `json:"content"`
 
 	ChatID    int64 `json:"chatId"`
 	MessageID int64 `json:"messageId"`
 
-	PartitionKey float64 `json:"partitionKey"`
+	TransactionSource TransactionSource `json:"transactionSource"`
 }
 
 type Transaction struct {
-	ID   string
-	Type TransactionType
+	ID                string
+	TransactionSource TransactionSource
+	Type              TransactionType
 
 	SourceAmount   decimal.Decimal
 	SourceCurrency string

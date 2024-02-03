@@ -21,116 +21,122 @@ func NewParibas() *Paribas {
 	return &Paribas{}
 }
 
+func (p *Paribas) Type() string {
+	return "paribas"
+}
+
 func (p *Paribas) ParseMessages(
 	ctx context.Context,
-	raw []byte,
+	rawArr [][]byte,
 	_ time.Time,
 ) ([]*database.Transaction, error) {
-	fileData, err := xlsx.OpenBinary(raw)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(fileData.Sheets) == 0 {
-		return nil, nil
-	}
-
 	var transactions []*database.Transaction
 
-	sheet := fileData.Sheets[0]
-
-	for i := 1; i < len(sheet.Rows); i++ {
-		tx := &database.Transaction{
-			ID:                          uuid.NewString(),
-			Type:                        0,
-			SourceAmount:                decimal.Decimal{},
-			SourceCurrency:              "",
-			DestinationAmount:           decimal.Decimal{},
-			DestinationCurrency:         "",
-			Date:                        time.Time{},
-			Description:                 "",
-			SourceAccount:               "",
-			DestinationAccount:          "",
-			DateFromMessage:             "",
-			Raw:                         "",
-			InternalTransferDirectionTo: false,
-			DuplicateTransactions:       nil,
-			OriginalMessage:             nil,
-		}
-		transactions = append(transactions, tx)
-
-		row := sheet.Rows[i]
-
-		if len(row.Cells) < 6 {
-			continue
+	for _, raw := range rawArr {
+		fileData, err := xlsx.OpenBinary(raw)
+		if err != nil {
+			return nil, err
 		}
 
-		date, cellErr := row.Cells[0].GetTime(false)
-		if cellErr != nil {
-			return nil, cellErr
+		if len(fileData.Sheets) == 0 {
+			return nil, nil
 		}
 
-		tx.Date = date
-		tx.DateFromMessage = date.Format("15:04")
+		sheet := fileData.Sheets[0]
 
-		amount := row.Cells[3].String()
-		amountParsed, amountErr := decimal.NewFromString(amount)
-		if amountErr != nil {
-			return nil, errors.Join(amountErr, errors.Newf("can not parse amount: %s", amount))
-		}
+		for i := 1; i < len(sheet.Rows); i++ {
+			tx := &database.Transaction{
+				ID:                          uuid.NewString(),
+				Type:                        0,
+				SourceAmount:                decimal.Decimal{},
+				SourceCurrency:              "",
+				DestinationAmount:           decimal.Decimal{},
+				DestinationCurrency:         "",
+				Date:                        time.Time{},
+				Description:                 "",
+				SourceAccount:               "",
+				DestinationAccount:          "",
+				DateFromMessage:             "",
+				Raw:                         "",
+				InternalTransferDirectionTo: false,
+				DuplicateTransactions:       nil,
+				OriginalMessage:             nil,
+			}
+			transactions = append(transactions, tx)
 
-		currency := row.Cells[4].String()
-		senderOrReceiver := row.Cells[5].String()
-		description := row.Cells[6].String()
+			row := sheet.Rows[i]
 
-		rawAccount := row.Cells[7].String()
-		accountArr := toLines(strings.ToLower(rawAccount))
-		account := lo.Reverse(accountArr)[0]
+			if len(row.Cells) < 6 {
+				continue
+			}
 
-		transactionType := row.Cells[8].String()
+			date, cellErr := row.Cells[0].GetTime(false)
+			if cellErr != nil {
+				return nil, cellErr
+			}
 
-		kwota := row.Cells[9].String()
-		transactionCurrency := row.Cells[10].String()
-		//status := row.Cells[11].String()
+			tx.Date = date
+			tx.DateFromMessage = date.Format("15:04")
 
-		if transactionCurrency != currency {
-			// tood find cases when different
-			return nil, errors.Newf("currency mismatch: %s != %s", transactionCurrency, currency)
-		}
+			amount := row.Cells[3].String()
+			amountParsed, amountErr := decimal.NewFromString(amount)
+			if amountErr != nil {
+				return nil, errors.Join(amountErr, errors.Newf("can not parse amount: %s", amount))
+			}
 
-		if amount != kwota {
-			// tood find cases when different
-			return nil, errors.Newf("amount mismatch: %s != %s", amount, kwota)
-		}
+			currency := row.Cells[4].String()
+			senderOrReceiver := row.Cells[5].String()
+			description := row.Cells[6].String()
 
-		tx.Raw = strings.Join([]string{description, senderOrReceiver, rawAccount, transactionType}, "\n")
-		tx.Description = description
-		switch transactionType {
-		case "Transakcja kartą", "Transakcja BLIK", "Prowizje i opłaty":
-			tx.Type = database.TransactionTypeExpense
-			tx.SourceAccount = account
-			tx.SourceAmount = amountParsed.Abs()
-			tx.SourceCurrency = currency
-		case "Przelew zagraniczny": // income
-			tx.Type = database.TransactionTypeIncome
-			tx.DestinationAccount = account
-			tx.DestinationAmount = amountParsed.Abs()
-			tx.DestinationCurrency = currency
-		case "Przelew przychodzący": // income transfer, maybe local ?
-			tx.Type = database.TransactionTypeIncome // can be changed in merge
-			tx.DestinationAccount = account
-			tx.DestinationAmount = amountParsed.Abs()
-			tx.DestinationCurrency = currency
-		case "Przelew wychodzący":
-			tx.Type = database.TransactionTypeRemoteTransfer // can be changed in merge
-			tx.DestinationAccount = toLines(senderOrReceiver)[0]
-			tx.DestinationAmount = amountParsed.Abs()
-			tx.DestinationCurrency = currency
-			tx.SourceCurrency = currency
-			tx.SourceAmount = amountParsed.Abs()
-			tx.SourceAccount = account
-		default:
-			return nil, errors.Newf("unknown transaction type: %s", transactionType)
+			rawAccount := row.Cells[7].String()
+			accountArr := toLines(strings.ToLower(rawAccount))
+			account := lo.Reverse(accountArr)[0]
+
+			transactionType := row.Cells[8].String()
+
+			kwota := row.Cells[9].String()
+			transactionCurrency := row.Cells[10].String()
+			//status := row.Cells[11].String()
+
+			if transactionCurrency != currency {
+				// tood find cases when different
+				return nil, errors.Newf("currency mismatch: %s != %s", transactionCurrency, currency)
+			}
+
+			if amount != kwota {
+				// tood find cases when different
+				return nil, errors.Newf("amount mismatch: %s != %s", amount, kwota)
+			}
+
+			tx.Raw = strings.Join([]string{description, senderOrReceiver, rawAccount, transactionType}, "\n")
+			tx.Description = description
+			switch transactionType {
+			case "Transakcja kartą", "Transakcja BLIK", "Prowizje i opłaty":
+				tx.Type = database.TransactionTypeExpense
+				tx.SourceAccount = account
+				tx.SourceAmount = amountParsed.Abs()
+				tx.SourceCurrency = currency
+			case "Przelew zagraniczny": // income
+				tx.Type = database.TransactionTypeIncome
+				tx.DestinationAccount = account
+				tx.DestinationAmount = amountParsed.Abs()
+				tx.DestinationCurrency = currency
+			case "Przelew przychodzący": // income transfer, maybe local ?
+				tx.Type = database.TransactionTypeIncome // can be changed in merge
+				tx.DestinationAccount = account
+				tx.DestinationAmount = amountParsed.Abs()
+				tx.DestinationCurrency = currency
+			case "Przelew wychodzący":
+				tx.Type = database.TransactionTypeRemoteTransfer // can be changed in merge
+				tx.DestinationAccount = toLines(senderOrReceiver)[0]
+				tx.DestinationAmount = amountParsed.Abs()
+				tx.DestinationCurrency = currency
+				tx.SourceCurrency = currency
+				tx.SourceAmount = amountParsed.Abs()
+				tx.SourceAccount = account
+			default:
+				return nil, errors.Newf("unknown transaction type: %s", transactionType)
+			}
 		}
 	}
 

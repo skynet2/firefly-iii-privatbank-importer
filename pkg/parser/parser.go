@@ -28,6 +28,10 @@ func NewParser() *Parser {
 	return &Parser{}
 }
 
+func (p *Parser) Type() string {
+	return "privatbank"
+}
+
 func (p *Parser) ParseMessages(
 	ctx context.Context,
 	raw string,

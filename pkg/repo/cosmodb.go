@@ -50,7 +50,7 @@ func (c *Cosmo) setupContainers() error {
 	_, err := c.cl.CreateContainer(context.Background(), azcosmos.ContainerProperties{
 		ID: messagesContainer,
 		PartitionKeyDefinition: azcosmos.PartitionKeyDefinition{
-			Paths: []string{"/partitionKey"},
+			Paths: []string{"/transactionSource"},
 		},
 	}, &azcosmos.CreateContainerOptions{})
 
@@ -70,7 +70,7 @@ func (c *Cosmo) ignoreDuplicateErr(err error) error {
 }
 
 func (c *Cosmo) AddMessage(ctx context.Context, message database.Message) error {
-	partitionKey := azcosmos.NewPartitionKeyNumber(message.PartitionKey)
+	partitionKey := azcosmos.NewPartitionKeyString(string(message.TransactionSource))
 
 	bytes, err := json.Marshal(message)
 	if err != nil {
@@ -97,13 +97,16 @@ func (c *Cosmo) getMessageContainer() (*azcosmos.ContainerClient, error) {
 	return c.cl.NewContainer(messagesContainer)
 }
 
-func (c *Cosmo) GetLatestMessages(ctx context.Context) ([]*database.Message, error) {
+func (c *Cosmo) GetLatestMessages(
+	ctx context.Context,
+	transactionSource database.TransactionSource,
+) ([]*database.Message, error) {
 	container, err := c.getMessageContainer()
 	if err != nil {
 		return nil, err
 	}
 
-	partitionKey := azcosmos.NewPartitionKeyNumber(float64(0))
+	partitionKey := azcosmos.NewPartitionKeyString(string(transactionSource))
 
 	query := "SELECT * FROM c where c.isProcessed = false order by c.createdAt desc"
 	pager := container.NewQueryItemsPager(query, partitionKey, nil)
@@ -147,7 +150,7 @@ func (c *Cosmo) UpdateMessage(ctx context.Context, message *database.Message) er
 		return err
 	}
 
-	partitionKey := azcosmos.NewPartitionKeyNumber(message.PartitionKey)
+	partitionKey := azcosmos.NewPartitionKeyString(string(message.TransactionSource))
 
 	bytes, err := json.Marshal(message)
 	if err != nil {

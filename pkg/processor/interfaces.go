@@ -10,7 +10,7 @@ import (
 
 type Repo interface {
 	AddMessage(ctx context.Context, message database.Message) error
-	GetLatestMessages(ctx context.Context) ([]*database.Message, error)
+	GetLatestMessages(ctx context.Context, source database.TransactionSource) ([]*database.Message, error)
 	Clear(ctx context.Context) error
 	UpdateMessage(ctx context.Context, message *database.Message) error
 }
@@ -18,9 +18,10 @@ type Repo interface {
 type Parser interface {
 	ParseMessages(
 		ctx context.Context,
-		raw string,
+		raw [][]byte,
 		date time.Time,
 	) (*database.Transaction, error)
+	Type() database.TransactionSource
 }
 
 type Firefly interface {

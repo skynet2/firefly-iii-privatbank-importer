@@ -23,21 +23,26 @@ const (
 
 type Processor struct {
 	repo            Repo
-	parser          Parser
+	parsers         map[database.TransactionSource]Parser
 	notificationSvc NotificationSvc
 	fireflySvc      Firefly
 }
 
 func NewProcessor(
 	repo Repo,
-	parser Parser,
+	parsers []Parser,
 	notificationSvc NotificationSvc,
 	fireflySvc Firefly,
 ) *Processor {
+	parser := make(map[database.TransactionSource]Parser)
+	for _, p := range parsers {
+		parser[p.Type()] = p
+	}
+
 	return &Processor{
 		repo:            repo,
 		fireflySvc:      fireflySvc,
-		parser:          parser,
+		parsers:         parser,
 		notificationSvc: notificationSvc,
 	}
 }
@@ -66,13 +71,14 @@ func (p *Processor) AddMessage(
 	message Message,
 ) error {
 	err := p.repo.AddMessage(ctx, database.Message{
-		ID:          uuid.NewString(),
-		CreatedAt:   message.OriginalDate,
-		ProcessedAt: nil,
-		IsProcessed: false,
-		Content:     message.Content,
-		ChatID:      message.ChatID,
-		MessageID:   message.MessageID,
+		ID:                uuid.NewString(),
+		CreatedAt:         message.OriginalDate,
+		ProcessedAt:       nil,
+		IsProcessed:       false,
+		Content:           message.Content,
+		ChatID:            message.ChatID,
+		MessageID:         message.MessageID,
+		TransactionSource: message.TransactionSource,
 	})
 	if err != nil {
 		return err
@@ -112,7 +118,8 @@ func (p *Processor) prettyPrint(
 		if tx.MappingError != nil {
 			sb.WriteString("Has Error: ❌\n")
 		}
-		sb.WriteString(fmt.Sprintf("Date: %s\n", tx.Original.Date.Format("2006-01-02 15:04")))
+		sb.WriteString(fmt.Sprintf("Source: %v", tx.Original.TransactionSource))
+		sb.WriteString(fmt.Sprintf("\nDate: %s\n", tx.Original.Date.Format("2006-01-02 15:04")))
 		sb.WriteString(fmt.Sprintf("\nSource: %v%v", tx.Original.SourceAmount.StringFixed(2), tx.Original.SourceCurrency))
 		sb.WriteString(fmt.Sprintf("\nSource Account: %s", tx.Original.SourceAccount))
 		if tx.Transaction != nil {
@@ -157,7 +164,7 @@ func (p *Processor) prettyPrint(
 }
 
 func (p *Processor) DryRun(ctx context.Context, message Message) error {
-	mappedTx, errArr, err := p.ProcessLatestMessages(ctx)
+	mappedTx, errArr, err := p.ProcessLatestMessages(ctx, message.TransactionSource)
 	if err != nil {
 		p.SendErrorMessage(ctx, err, message)
 
@@ -173,8 +180,9 @@ func (p *Processor) DryRun(ctx context.Context, message Message) error {
 
 func (p *Processor) ProcessLatestMessages(
 	ctx context.Context,
+	transactionSource database.TransactionSource,
 ) ([]*firefly.MappedTransaction, []error, error) {
-	messages, err := p.repo.GetLatestMessages(ctx)
+	messages, err := p.repo.GetLatestMessages(ctx, transactionSource)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -182,8 +190,20 @@ func (p *Processor) ProcessLatestMessages(
 	var transactions []*database.Transaction
 	var parseErrorsArr []error
 
+	parser, ok := p.parsers[transactionSource]
+	if !ok {
+		return nil, nil, errors.Newf("parser for source %v not found", transactionSource)
+	}
+
+	var dataToProcess [][]byte
 	for _, message := range messages {
-		transaction, parserErr := p.parser.ParseMessages(ctx, message.Content, message.CreatedAt)
+		dataToProcess = append(dataToProcess, message.Content)
+	}
+
+	transaction, parserErr := parser.ParseMessages(ctx, dataToProcess, message.CreatedAt)
+
+	for _, message := range messages {
+		transaction, parserErr := parser.ParseMessages(ctx, message.Content, message.CreatedAt)
 		if parserErr != nil {
 			parseErrorsArr = append(parseErrorsArr, errors.Join(
 				errors.Wrapf(parserErr, "message: %s", message.Content)))
@@ -270,7 +290,7 @@ func (p *Processor) Merge(
 }
 
 func (p *Processor) Commit(ctx context.Context, message Message) error {
-	transactions, errArr, err := p.ProcessLatestMessages(ctx)
+	transactions, errArr, err := p.ProcessLatestMessages(ctx, message.TransactionSource)
 	if err != nil {
 		p.SendErrorMessage(ctx, err, message)
 		return err
