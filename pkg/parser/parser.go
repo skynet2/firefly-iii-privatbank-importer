@@ -34,7 +34,7 @@ func (p *Parser) ParseMessages(
 	date time.Time,
 ) (*database.Transaction, error) {
 	lower := strings.ToLower(raw)
-	lines := p.toLines(lower)
+	lines := toLines(lower)
 
 	if len(lines) == 0 {
 		return nil, errors.New("empty input")
@@ -67,18 +67,12 @@ var (
 	internalTransferFromRegex = regexp.MustCompile(`(\d+.?\d+)([A-Z]{3}) (Переказ зі своєї карти (\d+\*\*\d+) (.*))$`)
 )
 
-func (p *Parser) toLines(input string) []string {
-	input = strings.ReplaceAll(input, "\r\n", "\n")
-
-	return strings.Split(input, "\n")
-}
-
 func (p *Parser) ParseIncomeTransfer(
 	_ context.Context,
 	raw string,
 	date time.Time,
 ) (*database.Transaction, error) {
-	lines := p.toLines(raw)
+	lines := toLines(raw)
 
 	if len(lines) < incomeTransferLinesCount {
 		return nil, errors.Newf("expected %d lines, got %d", incomeTransferLinesCount, len(lines))
@@ -118,7 +112,7 @@ func (p *Parser) ParseInternalTransfer(
 	raw string,
 	date time.Time,
 ) (*database.Transaction, error) {
-	lines := p.toLines(raw)
+	lines := toLines(raw)
 
 	isTo := strings.Contains(strings.ToLower(lines[0]), "переказ на свою карту")
 
@@ -224,7 +218,7 @@ func (p *Parser) ParseRemoteTransfer(
 	raw string,
 	date time.Time,
 ) (*database.Transaction, error) {
-	lines := p.toLines(raw)
+	lines := toLines(raw)
 
 	if len(lines) < remoteTransferLinesCount {
 		return nil, errors.Newf("expected %d lines, got %d", remoteTransferLinesCount, len(lines))
