@@ -270,6 +270,14 @@ func (p *Processor) ProcessLatestMessages(
 			Data:    []byte(message.Content),
 		}
 
+		if message.TransactionSource == database.Paribas {
+			rec.Data, err = hex.DecodeString(message.Content)
+			if err != nil {
+				parseErrorsArr = append(parseErrorsArr, errors.Wrapf(err, "failed to decode hex"))
+				continue
+			}
+		}
+
 		dataToProcess = append(dataToProcess, rec)
 	}
 
