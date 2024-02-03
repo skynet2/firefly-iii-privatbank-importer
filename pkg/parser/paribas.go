@@ -60,6 +60,7 @@ func (p *Paribas) ParseMessages(
 				InternalTransferDirectionTo: false,
 				DuplicateTransactions:       nil,
 				OriginalMessage:             raw.Message,
+				OriginalTxType:              "",
 			}
 			transactions = append(transactions, tx)
 
@@ -95,23 +96,19 @@ func (p *Paribas) ParseMessages(
 			account := lo.Reverse(accountArr)[0]
 
 			transactionType := row.Cells[8].String()
+			tx.OriginalTxType = transactionType
 
-			kwota := row.Cells[9].String()
+			kwotaStr := row.Cells[9].String()
+			kwotaParsed, kwotaErr := decimal.NewFromString(kwotaStr)
+			if kwotaErr != nil {
+				tx.ParsingError = errors.Join(kwotaErr, errors.Newf("can not parse kwota: %s", kwotaStr))
+				continue
+			}
+
 			transactionCurrency := row.Cells[10].String()
 			//status := row.Cells[11].String()
 
-			if transactionCurrency != currency {
-				tx.ParsingError = errors.Newf("currency mismatch: %s != %s", transactionCurrency, currency)
-				// todo find cases when different
-				continue
-			}
-
-			if amount != kwota {
-				tx.ParsingError = errors.Newf("amount mismatch: %s != %s", amount, kwota)
-				// todo find cases when different
-				continue
-			}
-
+			skipExtraChecks := false
 			tx.Raw = strings.Join([]string{description, senderOrReceiver, rawAccount, transactionType}, "\n")
 			tx.Description = description
 			switch transactionType {
@@ -120,6 +117,9 @@ func (p *Paribas) ParseMessages(
 				tx.SourceAccount = account
 				tx.SourceAmount = amountParsed.Abs()
 				tx.SourceCurrency = currency
+				tx.DestinationCurrency = transactionCurrency
+				tx.DestinationAmount = kwotaParsed.Abs()
+				skipExtraChecks = true
 			case "Przelew zagraniczny": // income
 				tx.Type = database.TransactionTypeIncome
 				tx.DestinationAccount = account
@@ -141,6 +141,20 @@ func (p *Paribas) ParseMessages(
 			default:
 				tx.ParsingError = errors.Newf("unknown transaction type: %s", transactionType)
 				continue
+			}
+
+			if !skipExtraChecks {
+				if transactionCurrency != currency {
+					tx.ParsingError = errors.Newf("currency mismatch: %s != %s", transactionCurrency, currency)
+					// todo find cases when different
+					continue
+				}
+
+				if amount != kwotaStr {
+					tx.ParsingError = errors.Newf("amount mismatch: %s != %s", amount, kwotaStr)
+					// todo find cases when different
+					continue
+				}
 			}
 		}
 	}
@@ -169,6 +183,10 @@ func (p *Paribas) merge(
 
 		isDuplicate := false
 		for _, f := range final {
+			if tx.OriginalTxType == "Prowizje i opłaty" {
+				continue
+			}
+
 			if f.Description != tx.Description {
 				continue
 			}

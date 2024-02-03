@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"net/http"
 	"os"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/imroc/req/v3"
 
+	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/database"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/firefly"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/notifications"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/parser"
@@ -31,6 +33,11 @@ func main() {
 		httpClient,
 	)
 
+	chatMap := map[string]database.TransactionSource{}
+	if err = json.Unmarshal([]byte(os.Getenv("CHAT_MAP")), &chatMap); err != nil {
+		panic(err)
+	}
+
 	dataRepo, err := repo.NewCosmo(client, os.Getenv("COSMO_DB_NAME"))
 	if err != nil {
 		panic(err)
@@ -51,7 +58,7 @@ func main() {
 		tgNotifier,
 		fireflyClient,
 	)
-	handle := NewHandler(processorSvc)
+	handle := NewHandler(processorSvc, chatMap)
 	r.Handle("/api/github/webhook", handle)
 
 	listenAddr := ":8080"

@@ -24,9 +24,9 @@ type Transaction struct {
 	TransactionSource TransactionSource
 	Type              TransactionType
 
-	SourceAmount   decimal.Decimal
-	SourceCurrency string
-
+	SourceAmount        decimal.Decimal
+	SourceCurrency      string
+	OriginalTxType      string
 	DestinationAmount   decimal.Decimal
 	DestinationCurrency string
 

@@ -18,15 +18,24 @@ func TestParseSimpleExpense(t *testing.T) {
 
 	srv := parser.NewParser()
 
-	resp, err := srv.ParseMessages(context.TODO(), input, time.Now())
+	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+		{
+			Data: []byte(input),
+			Message: &database.Message{
+				CreatedAt: time.Now(),
+			},
+		},
+	})
+
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
+	assert.Len(t, resp, 1)
 
-	assert.Equal(t, "1.33", resp.SourceAmount.String())
-	assert.Equal(t, "USD", resp.SourceCurrency)
-	assert.Equal(t, "Розваги. Steam", resp.Description)
-	assert.Equal(t, "4*71", resp.SourceAccount)
-	assert.Equal(t, database.TransactionTypeExpense, resp.Type)
+	assert.Equal(t, "1.33", resp[0].SourceAmount.String())
+	assert.Equal(t, "USD", resp[0].SourceCurrency)
+	assert.Equal(t, "Розваги. Steam", resp[0].Description)
+	assert.Equal(t, "4*71", resp[0].SourceAccount)
+	assert.Equal(t, database.TransactionTypeExpense, resp[0].Type)
 }
 
 func TestParseSimpleExpense2(t *testing.T) {
@@ -37,18 +46,27 @@ func TestParseSimpleExpense2(t *testing.T) {
 
 	srv := parser.NewParser()
 
-	resp, err := srv.ParseMessages(context.TODO(), input, time.Now())
+	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+		{
+			Data: []byte(input),
+			Message: &database.Message{
+				CreatedAt: time.Now(),
+			},
+		},
+	})
+
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
+	assert.Len(t, resp, 1)
 
-	assert.Equal(t, "83.69", resp.DestinationAmount.String())
-	assert.Equal(t, "PLN", resp.DestinationCurrency)
+	assert.Equal(t, "83.69", resp[0].DestinationAmount.String())
+	assert.Equal(t, "PLN", resp[0].DestinationCurrency)
 
-	assert.Equal(t, "21.41", resp.SourceAmount.StringFixed(2))
-	assert.Equal(t, "USD", resp.SourceCurrency)
-	assert.Equal(t, "Інтернет-магазини. AliExpress", resp.Description)
-	assert.Equal(t, "4*67", resp.SourceAccount)
-	assert.Equal(t, database.TransactionTypeExpense, resp.Type)
+	assert.Equal(t, "21.41", resp[0].SourceAmount.StringFixed(2))
+	assert.Equal(t, "USD", resp[0].SourceCurrency)
+	assert.Equal(t, "Інтернет-магазини. AliExpress", resp[0].Description)
+	assert.Equal(t, "4*67", resp[0].SourceAccount)
+	assert.Equal(t, database.TransactionTypeExpense, resp[0].Type)
 }
 
 func TestParseRemoteTransfer(t *testing.T) {
@@ -58,15 +76,23 @@ func TestParseRemoteTransfer(t *testing.T) {
 
 	srv := parser.NewParser()
 
-	resp, err := srv.ParseMessages(context.TODO(), input, time.Now())
+	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+		{
+			Data: []byte(input),
+			Message: &database.Message{
+				CreatedAt: time.Now(),
+			},
+		},
+	})
+
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
 
-	assert.Equal(t, "1.00", resp.SourceAmount.StringFixed(2))
-	assert.Equal(t, "UAH", resp.SourceCurrency)
-	assert.Equal(t, "Переказ через Приват24 Одержувач: Імя Фамілія ПоБатькові", resp.Description)
-	assert.Equal(t, "4*68", resp.SourceAccount)
-	assert.Equal(t, database.TransactionTypeRemoteTransfer, resp.Type)
+	assert.Equal(t, "1.00", resp[0].SourceAmount.StringFixed(2))
+	assert.Equal(t, "UAH", resp[0].SourceCurrency)
+	assert.Equal(t, "Переказ через Приват24 Одержувач: Імя Фамілія ПоБатькові", resp[0].Description)
+	assert.Equal(t, "4*68", resp[0].SourceAccount)
+	assert.Equal(t, database.TransactionTypeRemoteTransfer, resp[0].Type)
 }
 
 func TestParseRemoteTransfer3(t *testing.T) {
@@ -77,15 +103,23 @@ func TestParseRemoteTransfer3(t *testing.T) {
 
 	srv := parser.NewParser()
 
-	resp, err := srv.ParseMessages(context.TODO(), input, time.Now())
+	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+		{
+			Data: []byte(input),
+			Message: &database.Message{
+				CreatedAt: time.Now(),
+			},
+		},
+	})
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
+	assert.Len(t, resp, 1)
 
-	assert.Equal(t, "715.06", resp.SourceAmount.StringFixed(2))
-	assert.Equal(t, "UAH", resp.SourceCurrency)
-	assert.Equal(t, "Переказ зі своєї карти", resp.Description)
-	assert.Equal(t, "5*20", resp.SourceAccount)
-	assert.Equal(t, database.TransactionTypeRemoteTransfer, resp.Type)
+	assert.Equal(t, "715.06", resp[0].SourceAmount.StringFixed(2))
+	assert.Equal(t, "UAH", resp[0].SourceCurrency)
+	assert.Equal(t, "Переказ зі своєї карти", resp[0].Description)
+	assert.Equal(t, "5*20", resp[0].SourceAccount)
+	assert.Equal(t, database.TransactionTypeRemoteTransfer, resp[0].Type)
 }
 
 func TestParseRemoteTransfer2(t *testing.T) {
@@ -96,15 +130,22 @@ func TestParseRemoteTransfer2(t *testing.T) {
 
 	srv := parser.NewParser()
 
-	resp, err := srv.ParseMessages(context.TODO(), input, time.Now())
+	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+		{
+			Data: []byte(input),
+			Message: &database.Message{
+				CreatedAt: time.Now(),
+			},
+		},
+	})
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
 
-	assert.Equal(t, "4000.00", resp.SourceAmount.StringFixed(2))
-	assert.Equal(t, "UAH", resp.SourceCurrency)
-	assert.Equal(t, "Переказ через додаток Приват24. Одержувач: ХХ УУ ММ", resp.Description)
-	assert.Equal(t, "5*20", resp.SourceAccount)
-	assert.Equal(t, database.TransactionTypeRemoteTransfer, resp.Type)
+	assert.Equal(t, "4000.00", resp[0].SourceAmount.StringFixed(2))
+	assert.Equal(t, "UAH", resp[0].SourceCurrency)
+	assert.Equal(t, "Переказ через додаток Приват24. Одержувач: ХХ УУ ММ", resp[0].Description)
+	assert.Equal(t, "5*20", resp[0].SourceAccount)
+	assert.Equal(t, database.TransactionTypeRemoteTransfer, resp[0].Type)
 }
 
 func TestParseInternalTransferTo(t *testing.T) {
@@ -114,17 +155,24 @@ func TestParseInternalTransferTo(t *testing.T) {
 
 	srv := parser.NewParser()
 
-	resp, err := srv.ParseMessages(context.TODO(), input, time.Now())
+	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+		{
+			Data: []byte(input),
+			Message: &database.Message{
+				CreatedAt: time.Now(),
+			},
+		},
+	})
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
 
-	assert.Equal(t, "1.00", resp.SourceAmount.StringFixed(2))
-	assert.Equal(t, "UAH", resp.SourceCurrency)
-	assert.Equal(t, "Переказ на свою карту 51**20 через додаток Приват24", resp.Description)
-	assert.Equal(t, "4*68", resp.SourceAccount)
-	assert.Equal(t, "5*20", resp.DestinationAccount)
-	assert.Equal(t, database.TransactionTypeInternalTransfer, resp.Type)
-	assert.True(t, resp.InternalTransferDirectionTo)
+	assert.Equal(t, "1.00", resp[0].SourceAmount.StringFixed(2))
+	assert.Equal(t, "UAH", resp[0].SourceCurrency)
+	assert.Equal(t, "Переказ на свою карту 51**20 через додаток Приват24", resp[0].Description)
+	assert.Equal(t, "4*68", resp[0].SourceAccount)
+	assert.Equal(t, "5*20", resp[0].DestinationAccount)
+	assert.Equal(t, database.TransactionTypeInternalTransfer, resp[0].Type)
+	assert.True(t, resp[0].InternalTransferDirectionTo)
 }
 
 func TestParseInternalTransferFrom(t *testing.T) {
@@ -134,21 +182,29 @@ func TestParseInternalTransferFrom(t *testing.T) {
 
 	srv := parser.NewParser()
 
-	resp, err := srv.ParseMessages(context.TODO(), input, time.Now())
+	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+		{
+			Data: []byte(input),
+			Message: &database.Message{
+				CreatedAt: time.Now(),
+			},
+		},
+	})
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
+	assert.Len(t, resp, 1)
 
-	assert.Equal(t, "0.00", resp.SourceAmount.StringFixed(2))
-	assert.Equal(t, "", resp.SourceCurrency)
+	assert.Equal(t, "0.00", resp[0].SourceAmount.StringFixed(2))
+	assert.Equal(t, "", resp[0].SourceCurrency)
 
-	assert.Equal(t, "1.00", resp.DestinationAmount.StringFixed(2))
-	assert.Equal(t, "UAH", resp.DestinationCurrency)
+	assert.Equal(t, "1.00", resp[0].DestinationAmount.StringFixed(2))
+	assert.Equal(t, "UAH", resp[0].DestinationCurrency)
 
-	assert.Equal(t, "Переказ зі своєї карти 47**68 через додаток Приват24", resp.Description)
-	assert.Equal(t, "4*68", resp.SourceAccount)
-	assert.Equal(t, "5*20", resp.DestinationAccount)
-	assert.Equal(t, database.TransactionTypeInternalTransfer, resp.Type)
-	assert.False(t, resp.InternalTransferDirectionTo)
+	assert.Equal(t, "Переказ зі своєї карти 47**68 через додаток Приват24", resp[0].Description)
+	assert.Equal(t, "4*68", resp[0].SourceAccount)
+	assert.Equal(t, "5*20", resp[0].DestinationAccount)
+	assert.Equal(t, database.TransactionTypeInternalTransfer, resp[0].Type)
+	assert.False(t, resp[0].InternalTransferDirectionTo)
 }
 
 func TestParseInternalTransferFromUSD(t *testing.T) {
@@ -158,17 +214,24 @@ func TestParseInternalTransferFromUSD(t *testing.T) {
 
 	srv := parser.NewParser()
 
-	resp, err := srv.ParseMessages(context.TODO(), input, time.Now())
+	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+		{
+			Data: []byte(input),
+			Message: &database.Message{
+				CreatedAt: time.Now(),
+			},
+		},
+	})
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
 
-	assert.Equal(t, "1.00", resp.DestinationAmount.StringFixed(2))
-	assert.Equal(t, "USD", resp.DestinationCurrency)
-	assert.Equal(t, "Переказ зі своєї карти 52**20 через додаток Приват24", resp.Description)
-	assert.Equal(t, "5*20", resp.SourceAccount)
-	assert.Equal(t, "4*71", resp.DestinationAccount)
-	assert.Equal(t, database.TransactionTypeInternalTransfer, resp.Type)
-	assert.False(t, resp.InternalTransferDirectionTo)
+	assert.Equal(t, "1.00", resp[0].DestinationAmount.StringFixed(2))
+	assert.Equal(t, "USD", resp[0].DestinationCurrency)
+	assert.Equal(t, "Переказ зі своєї карти 52**20 через додаток Приват24", resp[0].Description)
+	assert.Equal(t, "5*20", resp[0].SourceAccount)
+	assert.Equal(t, "4*71", resp[0].DestinationAccount)
+	assert.Equal(t, database.TransactionTypeInternalTransfer, resp[0].Type)
+	assert.False(t, resp[0].InternalTransferDirectionTo)
 }
 
 func TestParseIncomeTransfer(t *testing.T) {
@@ -178,13 +241,20 @@ func TestParseIncomeTransfer(t *testing.T) {
 
 	srv := parser.NewParser()
 
-	resp, err := srv.ParseMessages(context.TODO(), input, time.Now())
+	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+		{
+			Data: []byte(input),
+			Message: &database.Message{
+				CreatedAt: time.Now(),
+			},
+		},
+	})
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
 
-	assert.Equal(t, "123.11", resp.DestinationAmount.StringFixed(2))
-	assert.Equal(t, "UAH", resp.DestinationCurrency)
-	assert.Equal(t, "Переказ через Приват24 Відправник: Імя Фамілія ПоБатькові", resp.Description)
-	assert.Equal(t, "5*20", resp.DestinationAccount)
-	assert.Equal(t, database.TransactionTypeIncome, resp.Type)
+	assert.Equal(t, "123.11", resp[0].DestinationAmount.StringFixed(2))
+	assert.Equal(t, "UAH", resp[0].DestinationCurrency)
+	assert.Equal(t, "Переказ через Приват24 Відправник: Імя Фамілія ПоБатькові", resp[0].Description)
+	assert.Equal(t, "5*20", resp[0].DestinationAccount)
+	assert.Equal(t, database.TransactionTypeIncome, resp[0].Type)
 }

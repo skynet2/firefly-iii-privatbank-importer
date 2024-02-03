@@ -10,6 +10,7 @@ import (
 	"github.com/cockroachdb/errors"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/google/uuid"
+	"github.com/samber/lo"
 	"github.com/shopspring/decimal"
 
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/database"
@@ -28,38 +29,150 @@ func NewParser() *Parser {
 	return &Parser{}
 }
 
-func (p *Parser) Type() string {
-	return "privatbank"
+func (p *Parser) Type() database.TransactionSource {
+	return database.PrivatBank
 }
 
 func (p *Parser) ParseMessages(
 	ctx context.Context,
-	raw string,
-	date time.Time,
-) (*database.Transaction, error) {
-	lower := strings.ToLower(raw)
-	lines := toLines(lower)
+	rawArr []*Record,
+) ([]*database.Transaction, error) {
+	var finalTx []*database.Transaction
 
-	if len(lines) == 0 {
-		return nil, errors.New("empty input")
-	}
+	for _, rawItem := range rawArr {
+		raw := string(rawItem.Data)
+		lower := strings.ToLower(raw)
+		lines := toLines(lower)
 
-	if strings.HasSuffix(lines[0], "переказ зі своєї карти") { // external transfer to another bank
-		return p.ParseRemoteTransfer(ctx, raw, date)
-	}
+		if len(lines) == 0 {
+			finalTx = append(finalTx, &database.Transaction{
+				Raw:          raw,
+				ParsingError: errors.New("empty input"),
+			})
 
-	if strings.Contains(lower, "переказ на свою карту") || strings.Contains(lower, "переказ зі своєї карти") { // internal transfer
-		return p.ParseInternalTransfer(ctx, raw, date)
-	}
-
-	if strings.Contains(lower, "переказ через ") { // remote transfer
-		if strings.Contains(lower, "відправник:") { // income
-			return p.ParseIncomeTransfer(ctx, raw, date)
+			continue
 		}
-		return p.ParseRemoteTransfer(ctx, raw, date)
+
+		if strings.HasSuffix(lines[0], "переказ зі своєї карти") { // external transfer to another bank
+			remote, err := p.ParseRemoteTransfer(ctx, raw, rawItem.Message.CreatedAt)
+
+			finalTx = p.appendTxOrError(finalTx, remote, err)
+			continue
+		}
+
+		if strings.Contains(lower, "переказ на свою карту") || strings.Contains(lower, "переказ зі своєї карти") { // internal transfer
+			remote, err := p.ParseInternalTransfer(ctx, raw, rawItem.Message.CreatedAt)
+
+			finalTx = p.appendTxOrError(finalTx, remote, err)
+			continue
+		}
+
+		if strings.Contains(lower, "переказ через ") { // remote transfer
+			if strings.Contains(lower, "відправник:") { // income
+				remote, err := p.ParseIncomeTransfer(ctx, raw, rawItem.Message.CreatedAt)
+
+				finalTx = p.appendTxOrError(finalTx, remote, err)
+				continue
+			}
+
+			remote, err := p.ParseRemoteTransfer(ctx, raw, rawItem.Message.CreatedAt)
+
+			finalTx = p.appendTxOrError(finalTx, remote, err)
+			continue
+		}
+
+		remote, err := p.ParseSimpleExpense(ctx, raw, rawItem.Message.CreatedAt)
+
+		finalTx = p.appendTxOrError(finalTx, remote, err)
+		continue
 	}
 
-	return p.ParseSimpleExpense(ctx, raw, date)
+	merged, err := p.Merge(ctx, finalTx)
+	if err != nil {
+		return nil, err
+	}
+
+	return merged, nil
+}
+
+func (p *Parser) Merge(
+	_ context.Context,
+	messages []*database.Transaction,
+) ([]*database.Transaction, error) {
+	var finalTransactions []*database.Transaction
+
+	for _, tx := range messages {
+		if tx.Type != database.TransactionTypeInternalTransfer {
+			finalTransactions = append(finalTransactions, tx)
+			continue
+		}
+
+		// currently we have a transfer transaction, lets ensure that we dont have duplicates
+		isDuplicate := false
+		for _, f := range finalTransactions {
+			if f.Type != database.TransactionTypeInternalTransfer {
+				continue
+			}
+
+			if f.DateFromMessage != tx.DateFromMessage {
+				continue // not our tx
+			}
+
+			if tx.InternalTransferDirectionTo && f.InternalTransferDirectionTo {
+				continue // not our tx
+			}
+
+			if tx.DestinationAccount != f.DestinationAccount ||
+				tx.SourceAccount != f.SourceAccount {
+				continue
+			}
+
+			if f.DestinationCurrency == "" && tx.DestinationCurrency != "" {
+				f.DestinationCurrency = tx.DestinationCurrency
+			}
+			if f.SourceCurrency == "" && tx.SourceCurrency != "" {
+				f.SourceCurrency = tx.SourceCurrency
+			}
+
+			if f.DestinationAmount.Equal(decimal.Zero) && tx.DestinationAmount.GreaterThan(decimal.Zero) {
+				f.DestinationAmount = tx.DestinationAmount
+			}
+			if f.SourceAmount.Equal(decimal.Zero) && tx.SourceAmount.GreaterThan(decimal.Zero) {
+				f.SourceAmount = tx.SourceAmount
+			}
+
+			// otherwise we have a duplicate
+			f.DuplicateTransactions = append(f.DuplicateTransactions, tx)
+			isDuplicate = true
+		}
+
+		if isDuplicate {
+			continue
+		}
+
+		finalTransactions = append(finalTransactions, tx)
+	}
+
+	return finalTransactions, nil
+}
+
+func (p *Parser) appendTxOrError(
+	finalTx []*database.Transaction,
+	tx *database.Transaction,
+	err error,
+) []*database.Transaction {
+	if !lo.IsNil(tx) {
+		finalTx = append(finalTx, tx)
+	}
+
+	if !lo.IsNil(err) {
+		finalTx = append(finalTx, &database.Transaction{
+			Raw:          tx.Raw,
+			ParsingError: err,
+		})
+	}
+
+	return finalTx
 }
 
 var (

@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/imroc/req/v3"
+	"github.com/samber/lo"
 )
 
 type Telegram struct {
@@ -52,25 +53,26 @@ func (t *Telegram) GetFile(ctx context.Context, fileID string) ([]byte, error) {
 func (t *Telegram) SendMessage(
 	ctx context.Context,
 	chatID int64,
-	text string,
+	raw string,
 ) error {
-	if len(text) > 4096 {
-		text = text[:4090]
-	}
-	resp, err := t.client.R().
-		SetBody(map[string]interface{}{
-			"chat_id": chatID,
-			"text":    text,
-		}).
-		SetContext(ctx).
-		Post(fmt.Sprintf("https://api.telegram.org/bot%v/sendMessage", t.apiToken))
+	texts := lo.Chunk([]rune(raw), 4090)
 
-	if err != nil {
-		return err
-	}
+	for _, text := range texts {
+		resp, err := t.client.R().
+			SetBody(map[string]interface{}{
+				"chat_id": chatID,
+				"text":    string(text),
+			}).
+			SetContext(ctx).
+			Post(fmt.Sprintf("https://api.telegram.org/bot%v/sendMessage", t.apiToken))
 
-	if resp.IsErrorState() {
-		return fmt.Errorf("unexpected status code: %v and message %v", resp.StatusCode, resp.String())
+		if err != nil {
+			return err
+		}
+
+		if resp.IsErrorState() {
+			return fmt.Errorf("unexpected status code: %v and message %v", resp.StatusCode, resp.String())
+		}
 	}
 
 	return nil

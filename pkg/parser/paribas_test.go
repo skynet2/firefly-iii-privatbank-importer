@@ -4,7 +4,6 @@ import (
 	"context"
 	_ "embed"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -27,10 +26,17 @@ var currencyExchange []byte
 //go:embed testdata/transfer_betwee_accounts.xlsx
 var betweenAccounts []byte
 
+//go:embed testdata/outgoing_payment_multi_currency.xlsx
+var outgoingPaymentMultiCurrency []byte
+
 func TestParibasBlik(t *testing.T) {
 	srv := parser.NewParibas()
 
-	resp, err := srv.ParseMessages(context.TODO(), blik, time.Now())
+	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+		{
+			Data: blik,
+		},
+	})
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
 	assert.Len(t, resp, 1)
@@ -44,10 +50,40 @@ func TestParibasBlik(t *testing.T) {
 	assert.Equal(t, "Transakcja BLIK, Allegro xxxx-c21, Płatność BLIK w internecie, Nr 12324, ALLEGRO SP. Z O.O., allegro.pl", resp[0].Description)
 }
 
+func TestMultiCurrencyPayment(t *testing.T) {
+	srv := parser.NewParibas()
+
+	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+		{
+			Data: outgoingPaymentMultiCurrency,
+		},
+	})
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Len(t, resp, 1)
+
+	assert.Equal(t, database.TransactionTypeExpense, resp[0].Type)
+
+	assert.Equal(t, "837.89", resp[0].SourceAmount.StringFixed(2))
+	assert.Equal(t, "PLN", resp[0].SourceCurrency)
+	assert.Equal(t, "22222222222222222222222", resp[0].SourceAccount)
+
+	assert.Equal(t, "199.00", resp[0].DestinationAmount.StringFixed(2))
+	assert.Equal(t, "USD", resp[0].DestinationCurrency)
+
+	assert.Equal(t, "00:00", resp[0].DateFromMessage)
+	assert.Equal(t, "2024-01-08 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
+	assert.Equal(t, "xx-----yy 4,xx xx.yyy my.vmware.com DRI-VMware IRL 199,00 USD 2024-01-08", resp[0].Description)
+}
+
 func TestParibasIncome(t *testing.T) {
 	srv := parser.NewParibas()
 
-	resp, err := srv.ParseMessages(context.TODO(), income, time.Now())
+	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+		{
+			Data: income,
+		},
+	})
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
 	assert.Len(t, resp, 1)
@@ -64,7 +100,12 @@ func TestParibasIncome(t *testing.T) {
 func TestParibasTransferToPrivateAccount(t *testing.T) {
 	srv := parser.NewParibas()
 
-	resp, err := srv.ParseMessages(context.TODO(), transferToPrivateAccount, time.Now())
+	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+		{
+			Data: transferToPrivateAccount,
+		},
+	})
+
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
 	assert.Len(t, resp, 1)
@@ -85,7 +126,11 @@ func TestParibasTransferToPrivateAccount(t *testing.T) {
 func TestParibasCurrencyExchange(t *testing.T) {
 	srv := parser.NewParibas()
 
-	resp, err := srv.ParseMessages(context.TODO(), currencyExchange, time.Now())
+	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+		{
+			Data: currencyExchange,
+		},
+	})
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
 	assert.Len(t, resp, 1)
@@ -106,7 +151,11 @@ func TestParibasCurrencyExchange(t *testing.T) {
 func TestParibasBetweenAccounts(t *testing.T) {
 	srv := parser.NewParibas()
 
-	resp, err := srv.ParseMessages(context.TODO(), betweenAccounts, time.Now())
+	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+		{
+			Data: betweenAccounts,
+		},
+	})
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
 	assert.Len(t, resp, 1)
