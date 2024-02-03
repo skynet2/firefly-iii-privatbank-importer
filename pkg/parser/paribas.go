@@ -2,6 +2,7 @@ package parser
 
 import (
 	"context"
+	"regexp"
 	"strings"
 	"time"
 
@@ -22,7 +23,7 @@ func NewParibas() *Paribas {
 }
 
 func (p *Paribas) ParseMessages(
-	_ context.Context,
+	ctx context.Context,
 	raw []byte,
 	_ time.Time,
 ) ([]*database.Transaction, error) {
@@ -103,16 +104,21 @@ func (p *Paribas) ParseMessages(
 			return nil, errors.Newf("amount mismatch: %s != %s", amount, kwota)
 		}
 
-		tx.Raw = strings.Join([]string{description, senderOrReceiver, rawAccount}, "\n")
+		tx.Raw = strings.Join([]string{description, senderOrReceiver, rawAccount, transactionType}, "\n")
 		tx.Description = description
 		switch transactionType {
-		case "Transakcja kartą", "Transakcja BLIK":
+		case "Transakcja kartą", "Transakcja BLIK", "Prowizje i opłaty":
 			tx.Type = database.TransactionTypeExpense
 			tx.SourceAccount = account
 			tx.SourceAmount = amountParsed.Abs()
 			tx.SourceCurrency = currency
 		case "Przelew zagraniczny": // income
 			tx.Type = database.TransactionTypeIncome
+			tx.DestinationAccount = account
+			tx.DestinationAmount = amountParsed.Abs()
+			tx.DestinationCurrency = currency
+		case "Przelew przychodzący": // income transfer, maybe local ?
+			tx.Type = database.TransactionTypeInternalTransfer
 			tx.DestinationAccount = account
 			tx.DestinationAmount = amountParsed.Abs()
 			tx.DestinationCurrency = currency
@@ -129,5 +135,68 @@ func (p *Paribas) ParseMessages(
 		}
 	}
 
-	return transactions, nil
+	merged, err := p.merge(ctx, transactions)
+	if err != nil {
+		return nil, err
+	}
+
+	return merged, nil
+}
+
+var currencyExchangeRegex = regexp.MustCompile(`(\w{3}) (\w{3}) ([^ ]+) (.*)$`)
+
+func (p *Paribas) merge(
+	_ context.Context,
+	transactions []*database.Transaction,
+) ([]*database.Transaction, error) {
+	var final []*database.Transaction
+
+	for _, tx := range transactions {
+		if tx.Type != database.TransactionTypeInternalTransfer {
+			final = append(final, tx)
+			continue
+		}
+
+		isCurrencyExchange := len(currencyExchangeRegex.FindStringSubmatch(tx.Description)) == 5 // USD PLN 4.0006 TWM2131232132131
+
+		if isCurrencyExchange {
+			isDuplicate := false
+			for _, f := range final {
+				if f.Description != tx.Description {
+					continue
+				}
+
+				if f.SourceCurrency == "" {
+					f.SourceCurrency = tx.SourceCurrency
+				}
+				if f.DestinationCurrency == "" {
+					f.DestinationCurrency = tx.DestinationCurrency
+				}
+				if f.SourceAmount.IsZero() {
+					f.SourceAmount = tx.SourceAmount
+				}
+				if f.DestinationAmount.IsZero() {
+					f.DestinationAmount = tx.DestinationAmount
+				}
+				if f.SourceAccount == "" {
+					f.SourceAccount = tx.SourceAccount
+				}
+				if f.DestinationAccount == "" {
+					f.DestinationAccount = tx.DestinationAccount
+				}
+
+				isDuplicate = true
+				f.DuplicateTransactions = append(f.DuplicateTransactions, tx)
+				break
+			}
+
+			if isDuplicate {
+				continue
+			}
+		}
+
+		final = append(final, tx)
+	}
+
+	return final, nil
 }
