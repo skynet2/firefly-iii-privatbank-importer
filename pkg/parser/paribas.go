@@ -2,7 +2,6 @@ package parser
 
 import (
 	"context"
-	"regexp"
 	"strings"
 	"time"
 
@@ -118,12 +117,12 @@ func (p *Paribas) ParseMessages(
 			tx.DestinationAmount = amountParsed.Abs()
 			tx.DestinationCurrency = currency
 		case "Przelew przychodzący": // income transfer, maybe local ?
-			tx.Type = database.TransactionTypeInternalTransfer
+			tx.Type = database.TransactionTypeIncome // can be changed in merge
 			tx.DestinationAccount = account
 			tx.DestinationAmount = amountParsed.Abs()
 			tx.DestinationCurrency = currency
 		case "Przelew wychodzący":
-			tx.Type = database.TransactionTypeInternalTransfer
+			tx.Type = database.TransactionTypeRemoteTransfer // can be changed in merge
 			tx.DestinationAccount = toLines(senderOrReceiver)[0]
 			tx.DestinationAmount = amountParsed.Abs()
 			tx.DestinationCurrency = currency
@@ -143,7 +142,7 @@ func (p *Paribas) ParseMessages(
 	return merged, nil
 }
 
-var currencyExchangeRegex = regexp.MustCompile(`(\w{3}) (\w{3}) ([^ ]+) (.*)$`)
+//var currencyExchangeRegex = regexp.MustCompile(`(\w{3}) (\w{3}) ([^ ]+) (.*)$`)
 
 func (p *Paribas) merge(
 	_ context.Context,
@@ -152,47 +151,51 @@ func (p *Paribas) merge(
 	var final []*database.Transaction
 
 	for _, tx := range transactions {
-		if tx.Type != database.TransactionTypeInternalTransfer {
-			final = append(final, tx)
-			continue
-		}
 
-		isCurrencyExchange := len(currencyExchangeRegex.FindStringSubmatch(tx.Description)) == 5 // USD PLN 4.0006 TWM2131232132131
-
-		if isCurrencyExchange {
-			isDuplicate := false
-			for _, f := range final {
-				if f.Description != tx.Description {
-					continue
-				}
-
-				if f.SourceCurrency == "" {
-					f.SourceCurrency = tx.SourceCurrency
-				}
-				if f.DestinationCurrency == "" {
-					f.DestinationCurrency = tx.DestinationCurrency
-				}
-				if f.SourceAmount.IsZero() {
-					f.SourceAmount = tx.SourceAmount
-				}
-				if f.DestinationAmount.IsZero() {
-					f.DestinationAmount = tx.DestinationAmount
-				}
-				if f.SourceAccount == "" {
-					f.SourceAccount = tx.SourceAccount
-				}
-				if f.DestinationAccount == "" {
-					f.DestinationAccount = tx.DestinationAccount
-				}
-
-				isDuplicate = true
-				f.DuplicateTransactions = append(f.DuplicateTransactions, tx)
-				break
-			}
-
-			if isDuplicate {
+		isDuplicate := false
+		for _, f := range final {
+			if f.Description != tx.Description {
 				continue
 			}
+
+			if !f.Date.Equal(tx.Date) {
+				continue
+			}
+
+			if len(f.DuplicateTransactions) > 0 {
+				continue // already merged
+			}
+
+			if f.SourceCurrency == "" {
+				f.SourceCurrency = tx.SourceCurrency
+			}
+			if f.DestinationCurrency == "" {
+				f.DestinationCurrency = tx.DestinationCurrency
+			}
+			if f.SourceAmount.IsZero() {
+				f.SourceAmount = tx.SourceAmount
+			}
+			if f.DestinationAmount.IsZero() {
+				f.DestinationAmount = tx.DestinationAmount
+			}
+			if f.SourceAccount == "" {
+				f.SourceAccount = tx.SourceAccount
+			}
+			if f.DestinationAccount == "" {
+				f.DestinationAccount = tx.DestinationAccount
+			}
+
+			//isCurrencyExchange := len(currencyExchangeRegex.FindStringSubmatch(tx.Description)) == 5 // USD PLN 4.0006 TWM2131232132131
+			f.Type = database.TransactionTypeInternalTransfer
+			tx.Type = database.TransactionTypeInternalTransfer
+
+			isDuplicate = true
+			f.DuplicateTransactions = append(f.DuplicateTransactions, tx)
+			break
+		}
+
+		if isDuplicate {
+			continue
 		}
 
 		final = append(final, tx)
