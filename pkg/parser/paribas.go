@@ -21,25 +21,24 @@ func NewParibas() *Paribas {
 	return &Paribas{}
 }
 
-func (p *Paribas) Type() string {
-	return "paribas"
+func (p *Paribas) Type() database.TransactionSource {
+	return database.Paribas
 }
 
 func (p *Paribas) ParseMessages(
 	ctx context.Context,
-	rawArr [][]byte,
-	_ time.Time,
+	rawArr []*Record,
 ) ([]*database.Transaction, error) {
 	var transactions []*database.Transaction
 
 	for _, raw := range rawArr {
-		fileData, err := xlsx.OpenBinary(raw)
+		fileData, err := xlsx.OpenBinary(raw.Data)
 		if err != nil {
 			return nil, err
 		}
 
 		if len(fileData.Sheets) == 0 {
-			return nil, nil
+			return nil, errors.New("no sheets found")
 		}
 
 		sheet := fileData.Sheets[0]
@@ -60,19 +59,21 @@ func (p *Paribas) ParseMessages(
 				Raw:                         "",
 				InternalTransferDirectionTo: false,
 				DuplicateTransactions:       nil,
-				OriginalMessage:             nil,
+				OriginalMessage:             raw.Message,
 			}
 			transactions = append(transactions, tx)
 
 			row := sheet.Rows[i]
 
 			if len(row.Cells) < 6 {
+				tx.ParsingError = errors.Newf("expected at least 6 cells, got %d", len(row.Cells))
 				continue
 			}
 
 			date, cellErr := row.Cells[0].GetTime(false)
 			if cellErr != nil {
-				return nil, cellErr
+				tx.ParsingError = errors.Join(cellErr, errors.Newf("can not parse date: %s", row.Cells[0].String()))
+				continue
 			}
 
 			tx.Date = date
@@ -81,7 +82,8 @@ func (p *Paribas) ParseMessages(
 			amount := row.Cells[3].String()
 			amountParsed, amountErr := decimal.NewFromString(amount)
 			if amountErr != nil {
-				return nil, errors.Join(amountErr, errors.Newf("can not parse amount: %s", amount))
+				tx.ParsingError = errors.Join(amountErr, errors.Newf("can not parse amount: %s", amount))
+				continue
 			}
 
 			currency := row.Cells[4].String()
@@ -99,13 +101,15 @@ func (p *Paribas) ParseMessages(
 			//status := row.Cells[11].String()
 
 			if transactionCurrency != currency {
-				// tood find cases when different
-				return nil, errors.Newf("currency mismatch: %s != %s", transactionCurrency, currency)
+				tx.ParsingError = errors.Newf("currency mismatch: %s != %s", transactionCurrency, currency)
+				// todo find cases when different
+				continue
 			}
 
 			if amount != kwota {
-				// tood find cases when different
-				return nil, errors.Newf("amount mismatch: %s != %s", amount, kwota)
+				tx.ParsingError = errors.Newf("amount mismatch: %s != %s", amount, kwota)
+				// todo find cases when different
+				continue
 			}
 
 			tx.Raw = strings.Join([]string{description, senderOrReceiver, rawAccount, transactionType}, "\n")
@@ -135,7 +139,8 @@ func (p *Paribas) ParseMessages(
 				tx.SourceAmount = amountParsed.Abs()
 				tx.SourceAccount = account
 			default:
-				return nil, errors.Newf("unknown transaction type: %s", transactionType)
+				tx.ParsingError = errors.Newf("unknown transaction type: %s", transactionType)
+				continue
 			}
 		}
 	}
@@ -157,6 +162,10 @@ func (p *Paribas) merge(
 	var final []*database.Transaction
 
 	for _, tx := range transactions {
+		if tx.ParsingError != nil { // pass-through
+			final = append(final, tx)
+			continue
+		}
 
 		isDuplicate := false
 		for _, f := range final {

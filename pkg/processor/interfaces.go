@@ -2,10 +2,10 @@ package processor
 
 import (
 	"context"
-	"time"
 
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/database"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/firefly"
+	parser2 "github.com/skynet2/firefly-iii-privatbank-importer/pkg/parser"
 )
 
 type Repo interface {
@@ -18,9 +18,8 @@ type Repo interface {
 type Parser interface {
 	ParseMessages(
 		ctx context.Context,
-		raw [][]byte,
-		date time.Time,
-	) (*database.Transaction, error)
+		raw []*parser2.Record,
+	) ([]*database.Transaction, error)
 	Type() database.TransactionSource
 }
 
@@ -46,4 +45,6 @@ type NotificationSvc interface {
 		chatID int64,
 		text string,
 	) error
+
+	GetFile(ctx context.Context, fileID string) ([]byte, error)
 }

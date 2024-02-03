@@ -44,6 +44,7 @@ func (h *Handler) ProcessWebhook(
 		Content:       webhook.Message.Text,
 		ForwardedFrom: forwardedFrom,
 		MessageID:     webhook.Message.MessageID,
+		FileID:        webhook.Message.Document.FileID,
 	})
 }
 

@@ -11,10 +11,10 @@ type Message struct {
 	CreatedAt   time.Time  `json:"createdAt"`
 	ProcessedAt *time.Time `json:"processedAt"`
 	IsProcessed bool       `json:"isProcessed"`
-	Content     []byte     `json:"content"`
-
-	ChatID    int64 `json:"chatId"`
-	MessageID int64 `json:"messageId"`
+	Content     string     `json:"content"`
+	FileID      string     `json:"fileId"`
+	ChatID      int64      `json:"chatId"`
+	MessageID   int64      `json:"messageId"`
 
 	TransactionSource TransactionSource `json:"transactionSource"`
 }
@@ -41,6 +41,7 @@ type Transaction struct {
 	DuplicateTransactions       []*Transaction
 
 	OriginalMessage *Message `json:"-"`
+	ParsingError    error    `json:"-"`
 }
 
 type TransactionType int32

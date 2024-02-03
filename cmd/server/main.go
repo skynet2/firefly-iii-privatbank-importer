@@ -44,7 +44,10 @@ func main() {
 	)
 	processorSvc := processor.NewProcessor(
 		dataRepo,
-		parser.NewParser(),
+		[]processor.Parser{
+			parser.NewParser(),
+			parser.NewParibas(),
+		},
 		tgNotifier,
 		fireflyClient,
 	)

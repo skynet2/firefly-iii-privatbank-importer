@@ -13,6 +13,7 @@ import (
 
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/database"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/firefly"
+	parser2 "github.com/skynet2/firefly-iii-privatbank-importer/pkg/parser"
 )
 
 const (
@@ -76,6 +77,7 @@ func (p *Processor) AddMessage(
 		ProcessedAt:       nil,
 		IsProcessed:       false,
 		Content:           message.Content,
+		FileID:            message.FileID,
 		ChatID:            message.ChatID,
 		MessageID:         message.MessageID,
 		TransactionSource: message.TransactionSource,
@@ -195,24 +197,28 @@ func (p *Processor) ProcessLatestMessages(
 		return nil, nil, errors.Newf("parser for source %v not found", transactionSource)
 	}
 
-	var dataToProcess [][]byte
+	var dataToProcess []*parser2.Record
 	for _, message := range messages {
-		dataToProcess = append(dataToProcess, message.Content)
-	}
-
-	transaction, parserErr := parser.ParseMessages(ctx, dataToProcess, message.CreatedAt)
-
-	for _, message := range messages {
-		transaction, parserErr := parser.ParseMessages(ctx, message.Content, message.CreatedAt)
-		if parserErr != nil {
-			parseErrorsArr = append(parseErrorsArr, errors.Join(
-				errors.Wrapf(parserErr, "message: %s", message.Content)))
-
-			continue
+		rec := &parser2.Record{
+			Message: message,
+			Data:    []byte(message.Content),
 		}
 
-		transaction.OriginalMessage = message
-		transactions = append(transactions, transaction)
+		if message.FileID != "" {
+			fileData, fileErr := p.notificationSvc.GetFile(ctx, message.FileID)
+			if fileErr != nil {
+				return nil, nil, errors.Wrapf(fileErr, "failed to get file")
+			}
+
+			rec.Data = fileData
+		}
+
+		dataToProcess = append(dataToProcess)
+	}
+
+	transaction, parserErr := parser.ParseMessages(ctx, dataToProcess)
+	if parserErr != nil {
+		return nil, nil, parserErr
 	}
 
 	transactions, err = p.Merge(ctx, transactions)

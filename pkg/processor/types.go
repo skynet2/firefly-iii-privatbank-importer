@@ -15,4 +15,5 @@ type Message struct {
 	ForwardedFrom     string
 	MessageID         int64
 	TransactionSource database.TransactionSource
+	FileID            string
 }

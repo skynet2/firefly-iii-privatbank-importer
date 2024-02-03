@@ -3,6 +3,7 @@ package notifications
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/imroc/req/v3"
 )
@@ -20,6 +21,32 @@ func NewTelegram(
 		client:   cl,
 		apiToken: apiToken,
 	}
+}
+
+func (t *Telegram) GetFile(ctx context.Context, fileID string) ([]byte, error) {
+	var fileResp getFileResponse
+
+	resp, err := t.client.R().
+		SetContext(ctx).
+		SetSuccessResult(&fileResp).
+		EnableDumpTo(os.Stdout).
+		Get(fmt.Sprintf("https://api.telegram.org/bot%v/getFile?file_id=%v", t.apiToken, fileID))
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.IsErrorState() {
+		return nil, fmt.Errorf("unexpected status code: %v and message %v", resp.StatusCode, resp.String())
+	}
+
+	resp, err = t.client.R().
+		SetContext(ctx).
+		Get(fmt.Sprintf("https://api.telegram.org/file/bot%v/%v", t.apiToken, fileResp.Result.FilePath))
+	if err != nil {
+		return nil, err
+	}
+
+	return resp.Bytes(), nil
 }
 
 func (t *Telegram) SendMessage(
