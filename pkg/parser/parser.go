@@ -56,14 +56,14 @@ func (p *Parser) ParseMessages(
 		if strings.HasSuffix(lines[0], "переказ зі своєї карти") { // external transfer to another bank
 			remote, err := p.ParseRemoteTransfer(ctx, raw, rawItem.Message.CreatedAt)
 
-			finalTx = p.appendTxOrError(finalTx, remote, err)
+			finalTx = p.appendTxOrError(finalTx, remote, err, raw)
 			continue
 		}
 
 		if strings.Contains(lower, "переказ на свою карту") || strings.Contains(lower, "переказ зі своєї карти") { // internal transfer
 			remote, err := p.ParseInternalTransfer(ctx, raw, rawItem.Message.CreatedAt)
 
-			finalTx = p.appendTxOrError(finalTx, remote, err)
+			finalTx = p.appendTxOrError(finalTx, remote, err, raw)
 			continue
 		}
 
@@ -71,19 +71,19 @@ func (p *Parser) ParseMessages(
 			if strings.Contains(lower, "відправник:") { // income
 				remote, err := p.ParseIncomeTransfer(ctx, raw, rawItem.Message.CreatedAt)
 
-				finalTx = p.appendTxOrError(finalTx, remote, err)
+				finalTx = p.appendTxOrError(finalTx, remote, err, raw)
 				continue
 			}
 
 			remote, err := p.ParseRemoteTransfer(ctx, raw, rawItem.Message.CreatedAt)
 
-			finalTx = p.appendTxOrError(finalTx, remote, err)
+			finalTx = p.appendTxOrError(finalTx, remote, err, raw)
 			continue
 		}
 
 		remote, err := p.ParseSimpleExpense(ctx, raw, rawItem.Message.CreatedAt)
 
-		finalTx = p.appendTxOrError(finalTx, remote, err)
+		finalTx = p.appendTxOrError(finalTx, remote, err, raw)
 		continue
 	}
 
@@ -160,6 +160,7 @@ func (p *Parser) appendTxOrError(
 	finalTx []*database.Transaction,
 	tx *database.Transaction,
 	err error,
+	raw string,
 ) []*database.Transaction {
 	if !lo.IsNil(tx) {
 		finalTx = append(finalTx, tx)
@@ -167,7 +168,7 @@ func (p *Parser) appendTxOrError(
 
 	if !lo.IsNil(err) {
 		finalTx = append(finalTx, &database.Transaction{
-			Raw:          tx.Raw,
+			Raw:          raw,
 			ParsingError: err,
 		})
 	}
