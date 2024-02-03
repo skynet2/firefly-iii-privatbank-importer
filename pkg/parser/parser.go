@@ -46,8 +46,9 @@ func (p *Parser) ParseMessages(
 
 		if len(lines) == 0 {
 			finalTx = append(finalTx, &database.Transaction{
-				Raw:          raw,
-				ParsingError: errors.New("empty input"),
+				Raw:             raw,
+				OriginalMessage: rawItem.Message,
+				ParsingError:    errors.New("empty input"),
 			})
 
 			continue
@@ -55,15 +56,14 @@ func (p *Parser) ParseMessages(
 
 		if strings.HasSuffix(lines[0], "переказ зі своєї карти") { // external transfer to another bank
 			remote, err := p.ParseRemoteTransfer(ctx, raw, rawItem.Message.CreatedAt)
-
-			finalTx = p.appendTxOrError(finalTx, remote, err, raw)
+			finalTx = p.appendTxOrError(finalTx, remote, err, raw, rawItem)
 			continue
 		}
 
 		if strings.Contains(lower, "переказ на свою карту") || strings.Contains(lower, "переказ зі своєї карти") { // internal transfer
 			remote, err := p.ParseInternalTransfer(ctx, raw, rawItem.Message.CreatedAt)
 
-			finalTx = p.appendTxOrError(finalTx, remote, err, raw)
+			finalTx = p.appendTxOrError(finalTx, remote, err, raw, rawItem)
 			continue
 		}
 
@@ -71,19 +71,19 @@ func (p *Parser) ParseMessages(
 			if strings.Contains(lower, "відправник:") { // income
 				remote, err := p.ParseIncomeTransfer(ctx, raw, rawItem.Message.CreatedAt)
 
-				finalTx = p.appendTxOrError(finalTx, remote, err, raw)
+				finalTx = p.appendTxOrError(finalTx, remote, err, raw, rawItem)
 				continue
 			}
 
 			remote, err := p.ParseRemoteTransfer(ctx, raw, rawItem.Message.CreatedAt)
 
-			finalTx = p.appendTxOrError(finalTx, remote, err, raw)
+			finalTx = p.appendTxOrError(finalTx, remote, err, raw, rawItem)
 			continue
 		}
 
 		remote, err := p.ParseSimpleExpense(ctx, raw, rawItem.Message.CreatedAt)
 
-		finalTx = p.appendTxOrError(finalTx, remote, err, raw)
+		finalTx = p.appendTxOrError(finalTx, remote, err, raw, rawItem)
 		continue
 	}
 
@@ -156,20 +156,17 @@ func (p *Parser) Merge(
 	return finalTransactions, nil
 }
 
-func (p *Parser) appendTxOrError(
-	finalTx []*database.Transaction,
-	tx *database.Transaction,
-	err error,
-	raw string,
-) []*database.Transaction {
+func (p *Parser) appendTxOrError(finalTx []*database.Transaction, tx *database.Transaction, err error, raw string, item *Record) []*database.Transaction {
 	if !lo.IsNil(tx) {
+		tx.OriginalMessage = item.Message
 		finalTx = append(finalTx, tx)
 	}
 
 	if !lo.IsNil(err) {
 		finalTx = append(finalTx, &database.Transaction{
-			Raw:          raw,
-			ParsingError: err,
+			Raw:             raw,
+			ParsingError:    err,
+			OriginalMessage: item.Message,
 		})
 	}
 
@@ -427,11 +424,21 @@ func (p *Parser) ParseSimpleExpense(
 				return nil, errors.Join(rateErr, errors.Newf("failed to parse rate %s", sp[1]))
 			}
 
-			finalTx.DestinationCurrency = finalTx.SourceCurrency
-			finalTx.DestinationAmount = finalTx.SourceAmount
+			if currencies[1] == finalTx.SourceCurrency {
+				finalTx.DestinationCurrency = finalTx.SourceCurrency
+				finalTx.DestinationAmount = finalTx.SourceAmount
 
-			finalTx.SourceCurrency = currencies[0]
-			finalTx.SourceAmount = amount.Mul(rate)
+				finalTx.SourceCurrency = currencies[0]
+				finalTx.SourceAmount = amount.Mul(rate)
+			} else if currencies[0] == finalTx.SourceCurrency {
+				finalTx.DestinationCurrency = finalTx.SourceCurrency
+				finalTx.DestinationAmount = finalTx.SourceAmount
+
+				finalTx.SourceCurrency = currencies[1]
+				finalTx.SourceAmount = amount.Div(rate)
+			} else {
+				return nil, errors.Newf("currency mismatch: %s %s", currencies[0], currencies[1])
+			}
 		}
 	}
 

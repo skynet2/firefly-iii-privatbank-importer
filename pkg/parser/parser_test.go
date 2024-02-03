@@ -69,6 +69,35 @@ func TestParseSimpleExpense2(t *testing.T) {
 	assert.Equal(t, database.TransactionTypeExpense, resp[0].Type)
 }
 
+func TestMultiCurrencyExpense(t *testing.T) {
+	input := `249.00UAH Комуналка та Інтернет. Sweet TV
+4*71 22:19
+Бал. 45.45USD
+Курс 37.3873 UAH/USD`
+
+	srv := parser.NewParser()
+
+	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+		{
+			Data: []byte(input),
+			Message: &database.Message{
+				CreatedAt: time.Now(),
+			},
+		},
+	})
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+
+	assert.Equal(t, "249.00", resp[0].DestinationAmount.StringFixed(2))
+	assert.Equal(t, "UAH", resp[0].DestinationCurrency)
+
+	assert.Equal(t, "6.66", resp[0].SourceAmount.StringFixed(2))
+	assert.Equal(t, "USD", resp[0].SourceCurrency)
+	assert.Equal(t, "Комуналка та Інтернет. Sweet TV", resp[0].Description)
+	assert.Equal(t, "4*71", resp[0].SourceAccount)
+	assert.Equal(t, database.TransactionTypeExpense, resp[0].Type)
+}
+
 func TestParseRemoteTransfer(t *testing.T) {
 	input := `1.00UAH Переказ через Приват24 Одержувач: Імя Фамілія ПоБатькові
 4*68 16:41
