@@ -145,6 +145,7 @@ func (p *Processor) prettyPrint(
 	ctx context.Context,
 	mappedTx []*firefly.MappedTransaction,
 	errArr []error,
+
 	message Message,
 ) error {
 	if len(mappedTx) == 0 && len(errArr) == 0 {

@@ -139,7 +139,7 @@ func (c *Cosmo) Clear(ctx context.Context, transactionSource database.Transactio
 		return err
 	}
 
-	msg, err := c.GetLatestMessages(ctx, database.Paribas)
+	msg, err := c.GetLatestMessages(ctx, transactionSource)
 	if err != nil {
 		return err
 	}
