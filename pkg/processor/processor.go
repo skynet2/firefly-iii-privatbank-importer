@@ -66,7 +66,7 @@ func (p *Processor) ProcessMessage(
 	case "/commit":
 		return p.Commit(ctx, message)
 	case "/clear":
-		return p.Clear(ctx)
+		return p.Clear(ctx, message)
 	default:
 		if err := p.AddMessage(ctx, message); err != nil {
 			p.SendErrorMessage(ctx, err, message)
@@ -137,10 +137,8 @@ func (p *Processor) AddMessage(
 	return nil
 }
 
-func (p *Processor) Clear(
-	ctx context.Context,
-) error {
-	return p.repo.Clear(ctx)
+func (p *Processor) Clear(ctx context.Context, message Message) error {
+	return p.repo.Clear(ctx, message.TransactionSource)
 }
 
 func (p *Processor) prettyPrint(

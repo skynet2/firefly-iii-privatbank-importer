@@ -133,13 +133,24 @@ func (c *Cosmo) GetLatestMessages(
 	return items, nil
 }
 
-func (c *Cosmo) Clear(ctx context.Context) error {
+func (c *Cosmo) Clear(ctx context.Context, transactionSource database.TransactionSource) error {
 	container, err := c.getMessageContainer()
 	if err != nil {
 		return err
 	}
 
-	_, err = container.Delete(ctx, &azcosmos.DeleteContainerOptions{})
+	msg, err := c.GetLatestMessages(ctx, database.Paribas)
+	if err != nil {
+		return err
+	}
+
+	for _, m := range msg {
+		if _, deleteErr := container.DeleteItem(
+			ctx,
+			azcosmos.NewPartitionKeyString(string(transactionSource)), m.ID, nil); deleteErr != nil {
+			return deleteErr
+		}
+	}
 
 	return err
 }
