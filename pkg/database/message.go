@@ -12,20 +12,21 @@ type Message struct {
 	ProcessedAt *time.Time `json:"processedAt"`
 	IsProcessed bool       `json:"isProcessed"`
 	Content     string     `json:"content"`
+	FileID      string     `json:"fileId"`
+	ChatID      int64      `json:"chatId"`
+	MessageID   int64      `json:"messageId"`
 
-	ChatID    int64 `json:"chatId"`
-	MessageID int64 `json:"messageId"`
-
-	PartitionKey float64 `json:"partitionKey"`
+	TransactionSource TransactionSource `json:"transactionSource"`
 }
 
 type Transaction struct {
-	ID   string
-	Type TransactionType
+	ID                string
+	TransactionSource TransactionSource
+	Type              TransactionType
 
-	SourceAmount   decimal.Decimal
-	SourceCurrency string
-
+	SourceAmount        decimal.Decimal
+	SourceCurrency      string
+	OriginalTxType      string
 	DestinationAmount   decimal.Decimal
 	DestinationCurrency string
 
@@ -40,6 +41,7 @@ type Transaction struct {
 	DuplicateTransactions       []*Transaction
 
 	OriginalMessage *Message `json:"-"`
+	ParsingError    error    `json:"-"`
 }
 
 type TransactionType int32

@@ -3,8 +3,10 @@ package notifications
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/imroc/req/v3"
+	"github.com/samber/lo"
 )
 
 type Telegram struct {
@@ -22,28 +24,55 @@ func NewTelegram(
 	}
 }
 
-func (t *Telegram) SendMessage(
-	ctx context.Context,
-	chatID int64,
-	text string,
-) error {
-	if len(text) > 4096 {
-		text = text[:4090]
-	}
-	resp, err := t.client.R().
-		SetBody(map[string]interface{}{
-			"chat_id": chatID,
-			"text":    text,
-		}).
-		SetContext(ctx).
-		Post(fmt.Sprintf("https://api.telegram.org/bot%v/sendMessage", t.apiToken))
+func (t *Telegram) GetFile(ctx context.Context, fileID string) ([]byte, error) {
+	var fileResp getFileResponse
 
+	resp, err := t.client.R().
+		SetContext(ctx).
+		SetSuccessResult(&fileResp).
+		EnableDumpTo(os.Stdout).
+		Get(fmt.Sprintf("https://api.telegram.org/bot%v/getFile?file_id=%v", t.apiToken, fileID))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if resp.IsErrorState() {
-		return fmt.Errorf("unexpected status code: %v and message %v", resp.StatusCode, resp.String())
+		return nil, fmt.Errorf("unexpected status code: %v and message %v", resp.StatusCode, resp.String())
+	}
+
+	resp, err = t.client.R().
+		SetContext(ctx).
+		Get(fmt.Sprintf("https://api.telegram.org/file/bot%v/%v", t.apiToken, fileResp.Result.FilePath))
+	if err != nil {
+		return nil, err
+	}
+
+	return resp.Bytes(), nil
+}
+
+func (t *Telegram) SendMessage(
+	ctx context.Context,
+	chatID int64,
+	raw string,
+) error {
+	texts := lo.Chunk([]rune(raw), 4090)
+
+	for _, text := range texts {
+		resp, err := t.client.R().
+			SetBody(map[string]interface{}{
+				"chat_id": chatID,
+				"text":    string(text),
+			}).
+			SetContext(ctx).
+			Post(fmt.Sprintf("https://api.telegram.org/bot%v/sendMessage", t.apiToken))
+
+		if err != nil {
+			return err
+		}
+
+		if resp.IsErrorState() {
+			return fmt.Errorf("unexpected status code: %v and message %v", resp.StatusCode, resp.String())
+		}
 	}
 
 	return nil

@@ -22,10 +22,10 @@ type AccountAttributes struct {
 }
 
 type MappedTransaction struct {
-	Original     *database.Transaction
-	Transaction  *Transaction
-	MappingError error
-	IsCommitted  bool
+	Original            *database.Transaction
+	Transaction         *Transaction
+	FireflyMappingError error
+	IsCommitted         bool
 }
 
 type Transaction struct {

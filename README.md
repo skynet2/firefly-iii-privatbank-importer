@@ -16,8 +16,23 @@ Account and Currency Mapping: Automatically map PrivatBank accounts and currenci
 Dry Run Mode: Preview transactions before committing them to Firefly III, ensuring accuracy.
 Commit and Clear Commands: Easily commit pending transactions or clear them if necessary.
 
+## Setup
 
-## Usage
+### Server deployment
+1. cd cmd/server && go build -o server
+2. deploy to your environment
+3. Setup environment variables
+```bash
+export CHAT_MAP = {"<telegram_chat_id>" : "privatbank", "<telegram_chat_id_2>" : "paribas"}
+export COSMO_DB_CONNECTION_STRING = "AccountEndpoint=..."
+export COSMO_DB_NAME = "firefly-importer"
+export FIREFLY_URL = "https://firefly.example.com"
+export FIREFLY_TOKEN= "your_firefly_token"
+export TELEGRAM_BOT_TOKEN = "your_telegram_bot_token"
+```
+4. Set telegram webhook url to your host (endpoint /api/github/webhook)
+
+## Bot Usage
 To use the Firefly III PrivatBank Importer, you need to set up a Telegram bot and connect it to your PrivatBank account to receive transaction notifications. Once set up, forward these notifications to your dedicated Telegram bot.
 
 ## Default Bot Commands

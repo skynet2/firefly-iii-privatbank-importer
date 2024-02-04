@@ -3,23 +3,25 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
 	"time"
 
+	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/database"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/processor"
 )
 
 type Handler struct {
 	processor MessageProcessor
+	chatMap   map[string]database.TransactionSource
 }
 
-func NewHandler(
-	processor MessageProcessor,
-) *Handler {
+func NewHandler(processor MessageProcessor, chatMap map[string]database.TransactionSource) *Handler {
 	return &Handler{
 		processor: processor,
+		chatMap:   chatMap,
 	}
 }
 
@@ -36,14 +38,18 @@ func (h *Handler) ProcessWebhook(
 		forwardedFrom = webhook.Message.ForwardOrigin.SenderUser.UserName
 	}
 
+	source := h.chatMap[fmt.Sprint(webhook.Message.Chat.Id)]
+
 	return h.processor.ProcessMessage(ctx, processor.Message{
-		ID:            strconv.FormatInt(webhook.UpdateId, 10),
-		Date:          date,
-		OriginalDate:  originalDate,
-		ChatID:        webhook.Message.Chat.Id,
-		Content:       webhook.Message.Text,
-		ForwardedFrom: forwardedFrom,
-		MessageID:     webhook.Message.MessageID,
+		ID:                strconv.FormatInt(webhook.UpdateId, 10),
+		Date:              date,
+		OriginalDate:      originalDate,
+		ChatID:            webhook.Message.Chat.Id,
+		Content:           webhook.Message.Text,
+		ForwardedFrom:     forwardedFrom,
+		MessageID:         webhook.Message.MessageID,
+		FileID:            webhook.Message.Document.FileID,
+		TransactionSource: source,
 	})
 }
 

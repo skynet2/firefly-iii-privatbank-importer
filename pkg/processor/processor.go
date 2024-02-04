@@ -2,6 +2,7 @@ package processor
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -9,10 +10,10 @@ import (
 	"github.com/cockroachdb/errors"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
-	"github.com/shopspring/decimal"
 
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/database"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/firefly"
+	parser2 "github.com/skynet2/firefly-iii-privatbank-importer/pkg/parser"
 )
 
 const (
@@ -23,21 +24,26 @@ const (
 
 type Processor struct {
 	repo            Repo
-	parser          Parser
+	parsers         map[database.TransactionSource]Parser
 	notificationSvc NotificationSvc
 	fireflySvc      Firefly
 }
 
 func NewProcessor(
 	repo Repo,
-	parser Parser,
+	parsers []Parser,
 	notificationSvc NotificationSvc,
 	fireflySvc Firefly,
 ) *Processor {
+	parser := make(map[database.TransactionSource]Parser)
+	for _, p := range parsers {
+		parser[p.Type()] = p
+	}
+
 	return &Processor{
 		repo:            repo,
 		fireflySvc:      fireflySvc,
-		parser:          parser,
+		parsers:         parser,
 		notificationSvc: notificationSvc,
 	}
 }
@@ -46,6 +52,11 @@ func (p *Processor) ProcessMessage(
 	ctx context.Context,
 	message Message,
 ) error {
+	if message.TransactionSource == "" {
+		p.SendErrorMessage(ctx, errors.New("transaction source is not set"), message)
+		return nil
+	}
+
 	lower := strings.ToLower(message.Content)
 
 	trimmed := strings.Split(lower, "@")
@@ -55,9 +66,15 @@ func (p *Processor) ProcessMessage(
 	case "/commit":
 		return p.Commit(ctx, message)
 	case "/clear":
-		return p.Clear(ctx)
+		return p.Clear(ctx, message)
 	default:
-		return p.AddMessage(ctx, message)
+		if err := p.AddMessage(ctx, message); err != nil {
+			p.SendErrorMessage(ctx, err, message)
+
+			return err
+		}
+
+		return nil
 	}
 }
 
@@ -65,36 +82,70 @@ func (p *Processor) AddMessage(
 	ctx context.Context,
 	message Message,
 ) error {
-	err := p.repo.AddMessage(ctx, database.Message{
-		ID:          uuid.NewString(),
-		CreatedAt:   message.OriginalDate,
-		ProcessedAt: nil,
-		IsProcessed: false,
-		Content:     message.Content,
-		ChatID:      message.ChatID,
-		MessageID:   message.MessageID,
-	})
-	if err != nil {
-		return err
+	var targetMessages []database.Message
+
+	if message.FileID != "" {
+		fileData, fileErr := p.notificationSvc.GetFile(ctx, message.FileID)
+		if fileErr != nil {
+			return errors.Wrapf(fileErr, "failed to get file")
+		}
+
+		splitted, err := p.parsers[message.TransactionSource].SplitExcel(ctx, fileData)
+		if err != nil {
+			return errors.Wrapf(err, "failed to split file")
+		}
+
+		for _, s := range splitted {
+			targetMessages = append(targetMessages, database.Message{
+				ID:                uuid.NewString(),
+				CreatedAt:         message.OriginalDate,
+				ProcessedAt:       nil,
+				IsProcessed:       false,
+				Content:           hex.EncodeToString(s),
+				FileID:            message.FileID,
+				ChatID:            message.ChatID,
+				MessageID:         message.MessageID,
+				TransactionSource: message.TransactionSource,
+			})
+		}
+
+	} else {
+		targetMessages = append(targetMessages, database.Message{
+			ID:                uuid.NewString(),
+			CreatedAt:         message.OriginalDate,
+			ProcessedAt:       nil,
+			IsProcessed:       false,
+			Content:           message.Content,
+			FileID:            message.FileID,
+			ChatID:            message.ChatID,
+			MessageID:         message.MessageID,
+			TransactionSource: message.TransactionSource,
+		})
 	}
 
-	if err = p.notificationSvc.React(ctx, message.ChatID, message.MessageID, reactionAccepted); err != nil {
+	for _, m := range targetMessages {
+		err := p.repo.AddMessage(ctx, m)
+		if err != nil {
+			return err
+		}
+	}
+
+	if err := p.notificationSvc.React(ctx, message.ChatID, message.MessageID, reactionAccepted); err != nil {
 		zerolog.Ctx(ctx).Error().Err(err).Msg("failed to react to message")
 	}
 
 	return nil
 }
 
-func (p *Processor) Clear(
-	ctx context.Context,
-) error {
-	return p.repo.Clear(ctx)
+func (p *Processor) Clear(ctx context.Context, message Message) error {
+	return p.repo.Clear(ctx, message.TransactionSource)
 }
 
 func (p *Processor) prettyPrint(
 	ctx context.Context,
 	mappedTx []*firefly.MappedTransaction,
 	errArr []error,
+
 	message Message,
 ) error {
 	if len(mappedTx) == 0 && len(errArr) == 0 {
@@ -105,25 +156,38 @@ func (p *Processor) prettyPrint(
 		return nil
 	}
 	var sb strings.Builder
+	withErrors := 0
 	for _, tx := range mappedTx {
 		if tx.IsCommitted {
 			sb.WriteString("Committed: ✅\n")
 		}
-		if tx.MappingError != nil {
+		if tx.FireflyMappingError != nil || tx.Original.ParsingError != nil {
 			sb.WriteString("Has Error: ❌\n")
+			withErrors += 1
 		}
-		sb.WriteString(fmt.Sprintf("Date: %s\n", tx.Original.Date.Format("2006-01-02 15:04")))
-		sb.WriteString(fmt.Sprintf("\nSource: %v%v", tx.Original.SourceAmount.StringFixed(2), tx.Original.SourceCurrency))
-		sb.WriteString(fmt.Sprintf("\nSource Account: %s", tx.Original.SourceAccount))
-		if tx.Transaction != nil {
+
+		sb.WriteString(fmt.Sprintf("Source: %v", tx.Original.TransactionSource))
+		sb.WriteString(fmt.Sprintf("\nDate: %s\n", tx.Original.Date.Format("2006-01-02 15:04")))
+
+		if !tx.Original.SourceAmount.IsZero() {
+			sb.WriteString(fmt.Sprintf("\nSource: %v%v", tx.Original.SourceAmount.StringFixed(2), tx.Original.SourceCurrency))
+		}
+		if tx.Original.SourceAccount != "" {
+			sb.WriteString(fmt.Sprintf("\nSource Account: %s", tx.Original.SourceAccount))
+		}
+		if tx.Transaction != nil && tx.Transaction.SourceName != "" {
 			sb.WriteString(fmt.Sprintf("\nSource [FF]: %s", tx.Transaction.SourceName))
 		}
 		sb.WriteString("\n")
 
-		sb.WriteString(fmt.Sprintf("\nDestination: %v%v",
-			tx.Original.DestinationAmount.StringFixed(2), tx.Original.DestinationCurrency))
-		sb.WriteString(fmt.Sprintf("\nDestination Account: %s", tx.Original.DestinationAccount))
-		if tx.Transaction != nil {
+		if !tx.Original.DestinationAmount.IsZero() {
+			sb.WriteString(fmt.Sprintf("\nDestination: %v%v",
+				tx.Original.DestinationAmount.StringFixed(2), tx.Original.DestinationCurrency))
+		}
+		if tx.Original.DestinationAccount != "" {
+			sb.WriteString(fmt.Sprintf("\nDestination Account: %s", tx.Original.DestinationAccount))
+		}
+		if tx.Transaction != nil && tx.Transaction.DestinationName != "" {
 			sb.WriteString(fmt.Sprintf("\nDestination [FF]: %s", tx.Transaction.DestinationName))
 		}
 		sb.WriteString("\n")
@@ -136,8 +200,11 @@ func (p *Processor) prettyPrint(
 
 		sb.WriteString(fmt.Sprintf("\nDescription: %s", tx.Original.Description))
 
-		if tx.MappingError != nil {
-			sb.WriteString(fmt.Sprintf("\nERROR: %s", tx.MappingError))
+		if tx.Original.ParsingError != nil {
+			sb.WriteString(fmt.Sprintf("\nParsing ERROR: %s", tx.Original.ParsingError))
+		}
+		if tx.FireflyMappingError != nil {
+			sb.WriteString(fmt.Sprintf("\nFirefly ERROR: %s", tx.FireflyMappingError))
 		}
 		sb.WriteString("\n====================\n")
 	}
@@ -149,6 +216,14 @@ func (p *Processor) prettyPrint(
 		}
 	}
 
+	sb.WriteString(fmt.Sprintf("\nTotal: %v", len(mappedTx)))
+	if withErrors > 0 {
+		sb.WriteString(fmt.Sprintf("\nOk: %v 🔥", len(mappedTx)-withErrors))
+		sb.WriteString(fmt.Sprintf("\nErrors: %v 🚒", withErrors))
+	} else {
+		sb.WriteString("\nAll Ok: ✅")
+	}
+
 	if err := p.notificationSvc.SendMessage(ctx, message.ChatID, sb.String()); err != nil {
 		return err
 	}
@@ -157,7 +232,7 @@ func (p *Processor) prettyPrint(
 }
 
 func (p *Processor) DryRun(ctx context.Context, message Message) error {
-	mappedTx, errArr, err := p.ProcessLatestMessages(ctx)
+	mappedTx, errArr, err := p.ProcessLatestMessages(ctx, message.TransactionSource)
 	if err != nil {
 		p.SendErrorMessage(ctx, err, message)
 
@@ -173,31 +248,41 @@ func (p *Processor) DryRun(ctx context.Context, message Message) error {
 
 func (p *Processor) ProcessLatestMessages(
 	ctx context.Context,
+	transactionSource database.TransactionSource,
 ) ([]*firefly.MappedTransaction, []error, error) {
-	messages, err := p.repo.GetLatestMessages(ctx)
+	messages, err := p.repo.GetLatestMessages(ctx, transactionSource)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	var transactions []*database.Transaction
 	var parseErrorsArr []error
 
-	for _, message := range messages {
-		transaction, parserErr := p.parser.ParseMessages(ctx, message.Content, message.CreatedAt)
-		if parserErr != nil {
-			parseErrorsArr = append(parseErrorsArr, errors.Join(
-				errors.Wrapf(parserErr, "message: %s", message.Content)))
-
-			continue
-		}
-
-		transaction.OriginalMessage = message
-		transactions = append(transactions, transaction)
+	parser, ok := p.parsers[transactionSource]
+	if !ok {
+		return nil, nil, errors.Newf("parser for source %v not found", transactionSource)
 	}
 
-	transactions, err = p.Merge(ctx, transactions)
-	if err != nil {
-		return nil, nil, err
+	var dataToProcess []*parser2.Record
+	for _, message := range messages {
+		rec := &parser2.Record{
+			Message: message,
+			Data:    []byte(message.Content),
+		}
+
+		if message.TransactionSource == database.Paribas {
+			rec.Data, err = hex.DecodeString(message.Content)
+			if err != nil {
+				parseErrorsArr = append(parseErrorsArr, errors.Wrapf(err, "failed to decode hex"))
+				continue
+			}
+		}
+
+		dataToProcess = append(dataToProcess, rec)
+	}
+
+	transactions, parserErr := parser.ParseMessages(ctx, dataToProcess)
+	if parserErr != nil {
+		return nil, nil, parserErr
 	}
 
 	mappedTransactions, err := p.fireflySvc.MapTransactions(ctx, transactions)
@@ -208,69 +293,8 @@ func (p *Processor) ProcessLatestMessages(
 	return mappedTransactions, parseErrorsArr, nil
 }
 
-func (p *Processor) Merge(
-	_ context.Context,
-	messages []*database.Transaction,
-) ([]*database.Transaction, error) {
-	var finalTransactions []*database.Transaction
-
-	for _, tx := range messages {
-		if tx.Type != database.TransactionTypeInternalTransfer {
-			finalTransactions = append(finalTransactions, tx)
-			continue
-		}
-
-		// currently we have a transfer transaction, lets ensure that we dont have duplicates
-		isDuplicate := false
-		for _, f := range finalTransactions {
-			if f.Type != database.TransactionTypeInternalTransfer {
-				continue
-			}
-
-			if f.DateFromMessage != tx.DateFromMessage {
-				continue // not our tx
-			}
-
-			if tx.InternalTransferDirectionTo && f.InternalTransferDirectionTo {
-				continue // not our tx
-			}
-
-			if tx.DestinationAccount != f.DestinationAccount ||
-				tx.SourceAccount != f.SourceAccount {
-				continue
-			}
-
-			if f.DestinationCurrency == "" && tx.DestinationCurrency != "" {
-				f.DestinationCurrency = tx.DestinationCurrency
-			}
-			if f.SourceCurrency == "" && tx.SourceCurrency != "" {
-				f.SourceCurrency = tx.SourceCurrency
-			}
-
-			if f.DestinationAmount.Equal(decimal.Zero) && tx.DestinationAmount.GreaterThan(decimal.Zero) {
-				f.DestinationAmount = tx.DestinationAmount
-			}
-			if f.SourceAmount.Equal(decimal.Zero) && tx.SourceAmount.GreaterThan(decimal.Zero) {
-				f.SourceAmount = tx.SourceAmount
-			}
-
-			// otherwise we have a duplicate
-			f.DuplicateTransactions = append(f.DuplicateTransactions, tx)
-			isDuplicate = true
-		}
-
-		if isDuplicate {
-			continue
-		}
-
-		finalTransactions = append(finalTransactions, tx)
-	}
-
-	return finalTransactions, nil
-}
-
 func (p *Processor) Commit(ctx context.Context, message Message) error {
-	transactions, errArr, err := p.ProcessLatestMessages(ctx)
+	transactions, errArr, err := p.ProcessLatestMessages(ctx, message.TransactionSource)
 	if err != nil {
 		p.SendErrorMessage(ctx, err, message)
 		return err
@@ -293,7 +317,7 @@ func (p *Processor) CommitTransaction(
 	requestMessage Message,
 ) {
 	if transaction.Original.OriginalMessage == nil {
-		transaction.MappingError = errors.Join(transaction.MappingError,
+		transaction.FireflyMappingError = errors.Join(transaction.FireflyMappingError,
 			errors.Newf("original message is nil"))
 
 		return
@@ -301,12 +325,12 @@ func (p *Processor) CommitTransaction(
 
 	transaction.IsCommitted = true
 	if _, err := p.fireflySvc.CreateTransactions(ctx, transaction.Transaction); err != nil {
-		transaction.MappingError = errors.Join(transaction.MappingError,
+		transaction.FireflyMappingError = errors.Join(transaction.FireflyMappingError,
 			errors.Wrapf(err, "failed to commit transaction"))
 	}
 
 	reaction := reactionCommitted
-	if transaction.MappingError != nil {
+	if transaction.FireflyMappingError != nil {
 		reaction = failedToCommit
 	}
 
@@ -327,7 +351,7 @@ func (p *Processor) CommitTransaction(
 		}
 	}
 
-	if transaction.MappingError != nil {
+	if transaction.FireflyMappingError != nil {
 		return
 	}
 
@@ -338,10 +362,10 @@ func (p *Processor) CommitTransaction(
 		upd.IsProcessed = true
 
 		if err := p.repo.UpdateMessage(ctx, upd); err != nil {
-			transaction.MappingError = errors.Join(transaction.MappingError,
+			transaction.FireflyMappingError = errors.Join(transaction.FireflyMappingError,
 				errors.Wrapf(err, "failed to update message"))
 
-			p.SendErrorMessage(ctx, transaction.MappingError, requestMessage)
+			p.SendErrorMessage(ctx, transaction.FireflyMappingError, requestMessage)
 		}
 	}
 }

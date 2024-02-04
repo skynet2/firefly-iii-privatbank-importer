@@ -90,13 +90,17 @@ func (f *Firefly) MapTransactions(
 		}
 
 		finalTransactions = append(finalTransactions, mapped)
+
+		if tx.ParsingError != nil { // pass-through
+			continue
+		}
 		switch tx.Type {
 		case database.TransactionTypeRemoteTransfer:
 			fallthrough
 		case database.TransactionTypeExpense:
 			acc, ok := accountByAccountNumber[tx.SourceAccount]
 			if !ok {
-				mapped.MappingError = errors.Newf("account with IBAN %s not found", tx.SourceAccount)
+				mapped.FireflyMappingError = errors.Newf("account with IBAN %s not found", tx.SourceAccount)
 				continue
 			}
 
@@ -121,13 +125,13 @@ func (f *Firefly) MapTransactions(
 
 			accSource, ok := accountByAccountNumber[sourceID]
 			if !ok {
-				mapped.MappingError = errors.Newf("source account with IBAN %s not found", sourceID)
+				mapped.FireflyMappingError = errors.Newf("source account with IBAN %s not found", sourceID)
 				continue
 			}
 
 			accDestination, ok := accountByAccountNumber[destinationID]
 			if !ok {
-				mapped.MappingError = errors.Newf("destination account with IBAN %s not found", destinationID)
+				mapped.FireflyMappingError = errors.Newf("destination account with IBAN %s not found", destinationID)
 				continue
 			}
 
@@ -148,7 +152,7 @@ func (f *Firefly) MapTransactions(
 		case database.TransactionTypeIncome:
 			acc, ok := accountByAccountNumber[tx.DestinationAccount]
 			if !ok {
-				mapped.MappingError = errors.Newf("account with IBAN %s not found", tx.DestinationAccount)
+				mapped.FireflyMappingError = errors.Newf("account with IBAN %s not found", tx.DestinationAccount)
 				continue
 			}
 
@@ -163,7 +167,7 @@ func (f *Firefly) MapTransactions(
 				Notes:           tx.Raw,
 			}
 		default:
-			mapped.MappingError = errors.Newf("unknown transaction type %d", tx.Type)
+			mapped.FireflyMappingError = errors.Newf("unknown transaction type %d", tx.Type)
 		}
 	}
 
@@ -181,7 +185,7 @@ func (f *Firefly) CreateTransactions(ctx context.Context, tx *Transaction) (*Tra
 		SetHeader("Accept", "application/json").
 		SetBody(map[string]interface{}{
 			"apply_rules":             true,
-			"error_if_duplicate_hash": false,
+			"error_if_duplicate_hash": true,
 			"fire_webhooks":           true,
 			"transactions":            []*Transaction{tx},
 		}).

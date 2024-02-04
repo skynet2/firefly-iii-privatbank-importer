@@ -12,8 +12,10 @@ require (
 	github.com/imroc/req/v3 v3.42.3
 	github.com/jarcoal/httpmock v1.3.1
 	github.com/rs/zerolog v1.31.0
+	github.com/samber/lo v1.39.0
 	github.com/shopspring/decimal v1.3.1
 	github.com/stretchr/testify v1.8.4
+	github.com/tealeg/xlsx v1.0.5
 )
 
 require (

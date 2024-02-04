@@ -2,25 +2,30 @@ package processor
 
 import (
 	"context"
-	"time"
 
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/database"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/firefly"
+	parser2 "github.com/skynet2/firefly-iii-privatbank-importer/pkg/parser"
 )
 
 type Repo interface {
 	AddMessage(ctx context.Context, message database.Message) error
-	GetLatestMessages(ctx context.Context) ([]*database.Message, error)
-	Clear(ctx context.Context) error
+	GetLatestMessages(ctx context.Context, source database.TransactionSource) ([]*database.Message, error)
+	Clear(ctx context.Context, transactionSource database.TransactionSource) error
 	UpdateMessage(ctx context.Context, message *database.Message) error
 }
 
 type Parser interface {
 	ParseMessages(
 		ctx context.Context,
-		raw string,
-		date time.Time,
-	) (*database.Transaction, error)
+		raw []*parser2.Record,
+	) ([]*database.Transaction, error)
+	Type() database.TransactionSource
+
+	SplitExcel(
+		_ context.Context,
+		data []byte,
+	) ([][]byte, error)
 }
 
 type Firefly interface {
@@ -45,4 +50,6 @@ type NotificationSvc interface {
 		chatID int64,
 		text string,
 	) error
+
+	GetFile(ctx context.Context, fileID string) ([]byte, error)
 }

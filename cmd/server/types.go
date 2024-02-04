@@ -8,9 +8,16 @@ type Webhook struct {
 type Message struct {
 	Date          int64          `json:"date"`
 	ForwardOrigin *ForwardOrigin `json:"forward_origin"`
-	Text          string
-	Chat          Chat  `json:"chat"`
-	MessageID     int64 `json:"message_id"`
+	Document      Document       `json:"document"`
+	Text          string         `json:"text"`
+	Chat          Chat           `json:"chat"`
+	MessageID     int64          `json:"message_id"`
+}
+
+type Document struct {
+	FileID   string `json:"file_id"`
+	FileName string `json:"file_name"`
+	MimeType string `json:"mime_type"`
 }
 
 type Chat struct {
