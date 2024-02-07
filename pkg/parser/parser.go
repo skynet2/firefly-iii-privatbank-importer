@@ -64,7 +64,7 @@ func (p *Parser) ParseMessages(
 			continue
 		}
 
-		if strings.Contains(lower, "переказ на свою карту") || strings.Contains(lower, "переказ зі своєї карти") { // internal transfer
+		if strings.Contains(lower, "переказ на свою карту") || strings.Contains(lower, "переказ зі своєї карт") { // internal transfer
 			remote, err := p.ParseInternalTransfer(ctx, raw, rawItem.Message.CreatedAt)
 
 			finalTx = p.appendTxOrError(finalTx, remote, err, raw, rawItem)
@@ -182,8 +182,8 @@ var (
 	balanceRegex              = regexp.MustCompile(`Бал\. .*(\w{3})`)
 	remoteTransferRegex       = simpleExpenseRegex
 	incomeTransferRegex       = simpleExpenseRegex
-	internalTransferToRegex   = regexp.MustCompile(`(\d+.?\d+)([A-Z]{3}) (Переказ на свою карту (\d+\*\*\d+) (.*))$`)
-	internalTransferFromRegex = regexp.MustCompile(`(\d+.?\d+)([A-Z]{3}) (Переказ зі своєї карти (\d+\*\*\d+) (.*))$`)
+	internalTransferToRegex   = regexp.MustCompile(`(\d+.?\d+)([A-Z]{3}) (Переказ на свою карт[^ ]+ (\d+\*\*\d+) (.*))$`)
+	internalTransferFromRegex = regexp.MustCompile(`(\d+.?\d+)([A-Z]{3}) (Переказ зі своєї карт[^ ]+ (\d+\*\*\d+) (.*))$`)
 )
 
 func (p *Parser) ParseIncomeTransfer(
@@ -233,7 +233,7 @@ func (p *Parser) ParseInternalTransfer(
 ) (*database.Transaction, error) {
 	lines := toLines(raw)
 
-	isTo := strings.Contains(strings.ToLower(lines[0]), "переказ на свою карту")
+	isTo := strings.Contains(strings.ToLower(lines[0]), "переказ на свою карт")
 
 	if isTo {
 		return p.parseInternalTransferTo(ctx, raw, lines, date)
