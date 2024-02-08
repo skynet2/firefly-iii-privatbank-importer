@@ -14,6 +14,9 @@ import (
 //go:embed testdata/blik.xlsx
 var blik []byte
 
+//go:embed testdata/two_expenses.xlsx
+var twoExpenses []byte
+
 //go:embed testdata/to_phone.xlsx
 var toPhone []byte
 
@@ -80,6 +83,24 @@ func TestParibasBlik(t *testing.T) {
 	assert.Equal(t, "00:00", resp[0].DateFromMessage)
 	assert.Equal(t, "2024-02-02 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
 	assert.Equal(t, "Transakcja BLIK, Allegro xxxx-c21, Płatność BLIK w internecie, Nr 12324, ALLEGRO SP. Z O.O., allegro.pl", resp[0].Description)
+}
+
+func TestTwoExpenses(t *testing.T) {
+	srv := parser.NewParibas()
+
+	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+		{
+			Data: twoExpenses,
+		},
+	})
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Len(t, resp, 2)
+
+	assert.NotEqual(t, resp[0].ID, resp[1].ID)
+	assert.Equal(t, database.TransactionTypeExpense, resp[0].Type)
+	assert.Equal(t, "500.00", resp[0].SourceAmount.StringFixed(2))
+	assert.Equal(t, "USD", resp[0].SourceCurrency)
 }
 
 func TestParibasBlokadaSrodkow(t *testing.T) {

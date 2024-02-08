@@ -231,6 +231,10 @@ func (p *Paribas) merge(
 				continue
 			}
 
+			if tx.Type == database.TransactionTypeExpense {
+				continue
+			}
+
 			if f.Description != tx.Description {
 				continue
 			}

@@ -185,7 +185,7 @@ func (f *Firefly) CreateTransactions(ctx context.Context, tx *Transaction) (*Tra
 		SetHeader("Accept", "application/json").
 		SetBody(map[string]interface{}{
 			"apply_rules":             true,
-			"error_if_duplicate_hash": true,
+			"error_if_duplicate_hash": false,
 			"fire_webhooks":           true,
 			"transactions":            []*Transaction{tx},
 		}).
