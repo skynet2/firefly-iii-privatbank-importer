@@ -35,6 +35,12 @@ var currencyExchange []byte
 //go:embed testdata/transfer_betwee_accounts.xlsx
 var betweenAccounts []byte
 
+//go:embed testdata/currency_exchange2.xlsx
+var currencyExchange2 []byte
+
+//go:embed testdata/currency_exchange2_2.xlsx
+var currencyExchange22 []byte
+
 //go:embed testdata/outgoing_payment_multi_currency.xlsx
 var outgoingPaymentMultiCurrency []byte
 
@@ -219,6 +225,34 @@ func TestParibasCurrencyExchange(t *testing.T) {
 	assert.Equal(t, "00:00", resp[0].DateFromMessage)
 	assert.Equal(t, "2024-01-24 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
 	assert.Equal(t, "USD PLN 4.0006 TWM2131232132131", resp[0].Description)
+}
+
+func TestParibasCurrencyExchange2(t *testing.T) {
+	srv := parser.NewParibas()
+
+	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+		{
+			Data: currencyExchange2,
+		},
+		{
+			Data: currencyExchange22,
+		},
+	})
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Len(t, resp, 1)
+
+	assert.Equal(t, database.TransactionTypeInternalTransfer, resp[0].Type)
+	assert.Equal(t, "EUR", resp[0].SourceCurrency)
+	assert.Equal(t, "1390.56", resp[0].SourceAmount.StringFixed(2))
+	assert.Equal(t, "PLN", resp[0].DestinationCurrency)
+	assert.Equal(t, "6000.00", resp[0].DestinationAmount.StringFixed(2))
+
+	assert.Equal(t, "22222222222222222222222222", resp[0].SourceAccount)
+	assert.Equal(t, "11111111111111111111111111", resp[0].DestinationAccount)
+	assert.Equal(t, "00:00", resp[0].DateFromMessage)
+	assert.Equal(t, "2024-02-08 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
+	assert.Equal(t, "EUR PLN 4.3148 TWM2402064671", resp[0].Description)
 }
 
 func TestParibasBetweenAccounts(t *testing.T) {

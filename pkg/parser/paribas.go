@@ -266,6 +266,16 @@ func (p *Paribas) merge(
 				f.DestinationAccount = tx.DestinationAccount
 			}
 
+			if tx.OriginalTxType == "Przelew przychodzący" {
+				f.DestinationAmount = tx.DestinationAmount
+				f.DestinationCurrency = tx.DestinationCurrency
+			}
+
+			if tx.OriginalTxType == "Przelew wychodzący" {
+				f.SourceAmount = tx.SourceAmount
+				f.SourceCurrency = tx.SourceCurrency
+			}
+
 			//isCurrencyExchange := len(currencyExchangeRegex.FindStringSubmatch(tx.Description)) == 5 // USD PLN 4.0006 TWM2131232132131
 			f.Type = database.TransactionTypeInternalTransfer
 			tx.Type = database.TransactionTypeInternalTransfer
