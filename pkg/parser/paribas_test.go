@@ -14,6 +14,12 @@ import (
 //go:embed testdata/blik.xlsx
 var blik []byte
 
+//go:embed testdata/to_phone.xlsx
+var toPhone []byte
+
+//go:embed testdata/blokada_srodkow.xlsx
+var blokada []byte
+
 //go:embed testdata/income.xlsx
 var income []byte
 
@@ -28,6 +34,32 @@ var betweenAccounts []byte
 
 //go:embed testdata/outgoing_payment_multi_currency.xlsx
 var outgoingPaymentMultiCurrency []byte
+
+func TestToPhone(t *testing.T) {
+	srv := parser.NewParibas()
+
+	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+		{
+			Data: toPhone,
+		},
+	})
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Len(t, resp, 1)
+
+	assert.Equal(t, database.TransactionTypeRemoteTransfer, resp[0].Type)
+	assert.Equal(t, "200.00", resp[0].SourceAmount.StringFixed(2))
+	assert.Equal(t, "PLN", resp[0].SourceCurrency)
+	assert.Equal(t, "11111111111111111111111", resp[0].SourceAccount)
+
+	assert.Equal(t, "200.00", resp[0].DestinationAmount.StringFixed(2))
+	assert.Equal(t, "PLN", resp[0].DestinationCurrency)
+	assert.Equal(t, "22222222222222222222222", resp[0].DestinationAccount)
+
+	assert.Equal(t, "00:00", resp[0].DateFromMessage)
+	assert.Equal(t, "2024-02-07 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
+	assert.Equal(t, "Some Descriptions", resp[0].Description)
+}
 
 func TestParibasBlik(t *testing.T) {
 	srv := parser.NewParibas()
@@ -50,6 +82,26 @@ func TestParibasBlik(t *testing.T) {
 	assert.Equal(t, "Transakcja BLIK, Allegro xxxx-c21, Płatność BLIK w internecie, Nr 12324, ALLEGRO SP. Z O.O., allegro.pl", resp[0].Description)
 }
 
+func TestParibasBlokadaSrodkow(t *testing.T) {
+	srv := parser.NewParibas()
+
+	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+		{
+			Data: blokada,
+		},
+	})
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Len(t, resp, 1)
+
+	assert.Equal(t, database.TransactionTypeExpense, resp[0].Type)
+	assert.Equal(t, "500.00", resp[0].SourceAmount.StringFixed(2))
+	assert.Equal(t, "USD", resp[0].SourceCurrency)
+	assert.Equal(t, "1234567", resp[0].SourceAccount)
+	assert.Equal(t, "00:00", resp[0].DateFromMessage)
+	assert.Equal(t, "2024-02-08 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
+	assert.Equal(t, "PAYPAL  XTB S 111 PL 111______111 500,00 USD ", resp[0].Description)
+}
 func TestMultiCurrencyPayment(t *testing.T) {
 	srv := parser.NewParibas()
 

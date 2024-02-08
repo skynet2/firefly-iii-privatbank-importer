@@ -149,8 +149,14 @@ func (p *Paribas) ParseMessages(
 			skipExtraChecks := false
 			tx.Raw = strings.Join([]string{description, senderOrReceiver, rawAccount, transactionType}, "\n")
 			tx.Description = description
+
+			if strings.HasPrefix(account, "pl") {
+				account = strings.ReplaceAll(account, "pl", "")
+			}
+
 			switch transactionType {
-			case "Transakcja kartą", "Transakcja BLIK", "Prowizje i opłaty":
+			case "Transakcja kartą", "Transakcja BLIK", "Prowizje i opłaty",
+				"Blokada środków":
 				tx.Type = database.TransactionTypeExpense
 				tx.SourceAccount = account
 				tx.SourceAmount = amountParsed.Abs()
@@ -168,7 +174,7 @@ func (p *Paribas) ParseMessages(
 				tx.DestinationAccount = account
 				tx.DestinationAmount = amountParsed.Abs()
 				tx.DestinationCurrency = currency
-			case "Przelew wychodzący":
+			case "Przelew wychodzący", "Przelew na telefon":
 				tx.Type = database.TransactionTypeRemoteTransfer // can be changed in merge
 				tx.DestinationAccount = toLines(senderOrReceiver)[0]
 				tx.DestinationAmount = amountParsed.Abs()
