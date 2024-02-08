@@ -3,6 +3,7 @@ package parser
 import (
 	"context"
 	"fmt"
+	"math"
 	"regexp"
 	"strings"
 	"time"
@@ -118,7 +119,22 @@ func (p *Parser) Merge(
 				continue
 			}
 
-			if f.DateFromMessage != tx.DateFromMessage {
+			if f.DateFromMessage == "" || tx.DateFromMessage == "" {
+				continue // missing date, can not merge
+			}
+
+			fDate, err := time.Parse("15:04", f.DateFromMessage)
+			if err != nil {
+				return nil, errors.WithStack(err)
+			}
+
+			txDate, err := time.Parse("15:04", tx.DateFromMessage)
+			if err != nil {
+				return nil, errors.WithStack(err)
+			}
+
+			minDiff := math.Abs(fDate.Sub(txDate).Minutes())
+			if minDiff > 5 { // diff > 5m
 				continue // not our tx
 			}
 
