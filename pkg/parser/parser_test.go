@@ -520,4 +520,45 @@ func TestMerger(t *testing.T) {
 		assert.Equal(t, "5*20", resp[0].DestinationAccount)
 		assert.Equal(t, database.TransactionTypeInternalTransfer, resp[0].Type)
 	})
+
+	t.Run("test transfer between account same currency", func(t *testing.T) {
+		input1 := `100.00USD Переказ на свою карту 47**71 через Приват24
+4*67 11:19
+Бал. 123.00USD`
+
+		input2 := `100.00USD Переказ зі своєї картки 46**67 через Приват24
+4*71 11:20
+Бал. 178.65USD`
+
+		srv := parser.NewParser()
+
+		resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+			{
+				Data: []byte(input1),
+				Message: &database.Message{
+					CreatedAt: time.Now(),
+				},
+			},
+			{
+				Data: []byte(input2),
+				Message: &database.Message{
+					CreatedAt: time.Now(),
+				},
+			},
+		})
+		assert.NoError(t, err)
+		assert.NotNil(t, resp)
+		assert.Len(t, resp, 1)
+
+		assert.Equal(t, "100.00", resp[0].DestinationAmount.StringFixed(2))
+		assert.Equal(t, "USD", resp[0].DestinationCurrency)
+
+		assert.Equal(t, "100.00", resp[0].SourceAmount.StringFixed(2))
+		assert.Equal(t, "USD", resp[0].SourceCurrency)
+
+		assert.Equal(t, "Переказ на свою карту 47**71 через Приват24", resp[0].Description)
+		assert.Equal(t, "4*67", resp[0].SourceAccount)
+		assert.Equal(t, "4*71", resp[0].DestinationAccount)
+		assert.Equal(t, database.TransactionTypeInternalTransfer, resp[0].Type)
+	})
 }
