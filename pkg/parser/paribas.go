@@ -149,8 +149,13 @@ func (p *Paribas) ParseMessages(
 			skipExtraChecks := false
 			tx.Raw = strings.Join([]string{description, senderOrReceiver, rawAccount, transactionType}, "\n")
 			tx.Description = description
+
+			account = p.stripAccountPrefix(account)
+			destinationAccount := p.stripAccountPrefix(toLines(senderOrReceiver)[0])
+
 			switch transactionType {
-			case "Transakcja kartą", "Transakcja BLIK", "Prowizje i opłaty":
+			case "Transakcja kartą", "Transakcja BLIK", "Prowizje i opłaty",
+				"Blokada środków":
 				tx.Type = database.TransactionTypeExpense
 				tx.SourceAccount = account
 				tx.SourceAmount = amountParsed.Abs()
@@ -159,18 +164,28 @@ func (p *Paribas) ParseMessages(
 				tx.DestinationAmount = kwotaParsed.Abs()
 				skipExtraChecks = true
 			case "Przelew zagraniczny": // income
-				tx.Type = database.TransactionTypeIncome
-				tx.DestinationAccount = account
-				tx.DestinationAmount = amountParsed.Abs()
-				tx.DestinationCurrency = currency
+				if kwotaParsed.IsPositive() {
+					tx.Type = database.TransactionTypeIncome
+					tx.DestinationAccount = account
+					tx.DestinationAmount = amountParsed.Abs()
+					tx.DestinationCurrency = currency
+				} else {
+					tx.Type = database.TransactionTypeExpense
+					tx.SourceAccount = account
+					tx.SourceAmount = amountParsed.Abs()
+					tx.SourceCurrency = currency
+					tx.DestinationCurrency = transactionCurrency
+					tx.DestinationAmount = kwotaParsed.Abs()
+					tx.DestinationAccount = destinationAccount
+				}
 			case "Przelew przychodzący": // income transfer, maybe local ?
 				tx.Type = database.TransactionTypeIncome // can be changed in merge
 				tx.DestinationAccount = account
 				tx.DestinationAmount = amountParsed.Abs()
 				tx.DestinationCurrency = currency
-			case "Przelew wychodzący":
+			case "Przelew wychodzący", "Przelew na telefon":
 				tx.Type = database.TransactionTypeRemoteTransfer // can be changed in merge
-				tx.DestinationAccount = toLines(senderOrReceiver)[0]
+				tx.DestinationAccount = destinationAccount
 				tx.DestinationAmount = amountParsed.Abs()
 				tx.DestinationCurrency = currency
 				tx.SourceCurrency = currency
@@ -205,6 +220,15 @@ func (p *Paribas) ParseMessages(
 	return merged, nil
 }
 
+func (p *Paribas) stripAccountPrefix(account string) string {
+	account = strings.ToLower(account)
+	if strings.HasPrefix(account, "pl") {
+		account = strings.ReplaceAll(account, "pl", "")
+	}
+
+	return account
+}
+
 //var currencyExchangeRegex = regexp.MustCompile(`(\w{3}) (\w{3}) ([^ ]+) (.*)$`)
 
 func (p *Paribas) merge(
@@ -222,6 +246,10 @@ func (p *Paribas) merge(
 		isDuplicate := false
 		for _, f := range final {
 			if tx.OriginalTxType == "Prowizje i opłaty" {
+				continue
+			}
+
+			if tx.Type == database.TransactionTypeExpense {
 				continue
 			}
 
@@ -254,6 +282,16 @@ func (p *Paribas) merge(
 			}
 			if f.DestinationAccount == "" {
 				f.DestinationAccount = tx.DestinationAccount
+			}
+
+			if tx.OriginalTxType == "Przelew przychodzący" {
+				f.DestinationAmount = tx.DestinationAmount
+				f.DestinationCurrency = tx.DestinationCurrency
+			}
+
+			if tx.OriginalTxType == "Przelew wychodzący" {
+				f.SourceAmount = tx.SourceAmount
+				f.SourceCurrency = tx.SourceCurrency
 			}
 
 			//isCurrencyExchange := len(currencyExchangeRegex.FindStringSubmatch(tx.Description)) == 5 // USD PLN 4.0006 TWM2131232132131
