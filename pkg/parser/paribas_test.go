@@ -200,6 +200,11 @@ func TestParibasIncome(t *testing.T) {
 	assert.Equal(t, "11.48", resp[0].DestinationAmount.StringFixed(2))
 	assert.Equal(t, "EUR", resp[0].DestinationCurrency)
 	assert.Equal(t, "123443252341234214321331", resp[0].DestinationAccount)
+
+	assert.Equal(t, "11.48", resp[0].SourceAmount.StringFixed(2))
+	assert.Equal(t, "EUR", resp[0].SourceCurrency)
+	assert.Equal(t, "/es123432523424213132", resp[0].SourceAccount)
+
 	assert.Equal(t, "00:00", resp[0].DateFromMessage)
 	assert.Equal(t, "2024-02-01 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
 	assert.Equal(t, "SOFTWARE DEVELOPMENT SERVICES, INVOICE NO 1-2 XXYY, 31.01.2024", resp[0].Description)

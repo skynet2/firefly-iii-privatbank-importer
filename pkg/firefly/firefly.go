@@ -119,6 +119,13 @@ func (f *Firefly) MapTransactions(
 			if tx.DestinationAmount.GreaterThan(decimal.Zero) {
 				mapped.Transaction.ForeignAmount = tx.DestinationAmount.StringFixed(2)
 			}
+
+			if tx.DestinationAccount != "" {
+				if dst, dstOk := accountByAccountNumber[tx.DestinationAccount]; dstOk {
+					mapped.Transaction.DestinationID = dst.Id
+					mapped.Transaction.DestinationName = dst.Attributes.Name
+				}
+			}
 		case database.TransactionTypeInternalTransfer:
 			sourceID := tx.SourceAccount
 			destinationID := tx.DestinationAccount
@@ -165,6 +172,15 @@ func (f *Firefly) MapTransactions(
 				DestinationID:   acc.Id,
 				DestinationName: acc.Attributes.Name,
 				Notes:           tx.Raw,
+			}
+
+			if tx.SourceAccount != "" {
+				if src, sourceOk := accountByAccountNumber[tx.SourceAccount]; sourceOk {
+					mapped.Transaction.SourceID = src.Id
+					mapped.Transaction.SourceName = src.Attributes.Name
+					mapped.Transaction.ForeignCurrencyCode = tx.SourceCurrency
+					mapped.Transaction.ForeignAmount = tx.SourceAmount.StringFixed(2)
+				}
 			}
 		default:
 			mapped.FireflyMappingError = errors.Newf("unknown transaction type %d", tx.Type)
