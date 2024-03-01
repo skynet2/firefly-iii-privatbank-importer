@@ -47,6 +47,31 @@ var outgoingPaymentMultiCurrency []byte
 //go:embed testdata/pshelev_expense.xlsx
 var pshelevExpense []byte
 
+//go:embed testdata/account_commission.xlsx
+var accountCommission []byte
+
+func TestExpenseCommission(t *testing.T) {
+	srv := parser.NewParibas()
+
+	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+		{
+			Data: accountCommission,
+		},
+	})
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Len(t, resp, 1)
+
+	assert.Equal(t, database.TransactionTypeExpense, resp[0].Type)
+	assert.Equal(t, "2.31", resp[0].SourceAmount.StringFixed(2))
+	assert.Equal(t, "EUR", resp[0].SourceCurrency)
+	assert.Equal(t, "11111111111111111111111111111111111", resp[0].SourceAccount)
+
+	assert.Equal(t, "00:00", resp[0].DateFromMessage)
+	assert.Equal(t, "2024-02-24 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
+	assert.Equal(t, "Prowizje i opłaty", resp[0].Description)
+}
+
 func TestPshelevExpense(t *testing.T) {
 	srv := parser.NewParibas()
 

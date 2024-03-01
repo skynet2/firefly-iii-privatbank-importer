@@ -146,6 +146,10 @@ func (p *Paribas) ParseMessages(
 			transactionCurrency := row.Cells[10].String()
 			//status := row.Cells[11].String()
 
+			if description == "" {
+				description = transactionType // firefly description is required
+			}
+
 			skipExtraChecks := false
 			tx.Raw = strings.Join([]string{description, senderOrReceiver, rawAccount, transactionType}, "\n")
 			tx.Description = description
