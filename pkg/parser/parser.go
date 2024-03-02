@@ -23,6 +23,10 @@ const (
 	incomeTransferLinesCount = 3
 )
 
+const (
+	unk = "UNK"
+)
+
 type Parser struct {
 }
 
@@ -142,6 +146,15 @@ func (p *Parser) Merge(
 				continue // not our tx
 			}
 
+			if tx.SourceAccount == f.SourceAccount {
+				if tx.DestinationAccount == unk {
+					tx.DestinationAccount = f.DestinationAccount
+				}
+				if f.DestinationAccount == unk {
+					f.DestinationAccount = tx.DestinationAccount
+				}
+			}
+
 			if tx.DestinationAccount != f.DestinationAccount ||
 				tx.SourceAccount != f.SourceAccount {
 				continue
@@ -198,7 +211,7 @@ var (
 	balanceRegex              = regexp.MustCompile(`Бал\. .*(\w{3})`)
 	remoteTransferRegex       = simpleExpenseRegex
 	incomeTransferRegex       = simpleExpenseRegex
-	internalTransferToRegex   = regexp.MustCompile(`(\d+.?\d+)([A-Z]{3}) (Переказ на свою карт[^ ]+ (\d+\*\*\d+) (.*))$`)
+	internalTransferToRegex   = regexp.MustCompile(`(\d+.?\d+)([A-Z]{3}) (Переказ на свою карт[^ ]+ (?:(\d+\*\*\d+) )?(.*))$`)
 	internalTransferFromRegex = regexp.MustCompile(`(\d+.?\d+)([A-Z]{3}) (Переказ зі своєї карт[^ ]+ (\d+\*\*\d+) (.*))$`)
 )
 
@@ -307,8 +320,8 @@ func (p *Parser) parseInternalTransferTo(
 ) (*database.Transaction, error) {
 	matches := internalTransferToRegex.FindStringSubmatch(lines[0])
 
-	if len(matches) != 6 {
-		return nil, errors.Newf("expected 6 matches, got %v", spew.Sdump(matches))
+	if len(matches) != 6 && len(matches) != 5 {
+		return nil, errors.Newf("expected 5-6 matches, got %v", spew.Sdump(matches))
 	}
 
 	amount, err := decimal.NewFromString(matches[1])
@@ -322,6 +335,10 @@ func (p *Parser) parseInternalTransferTo(
 	}
 
 	destinationAccount := p.formatDestinationAccount(matches[4])
+
+	if !strings.Contains(destinationAccount, "*") {
+		destinationAccount = unk
+	}
 
 	finalTx := &database.Transaction{
 		ID:                          uuid.NewString(),

@@ -13,6 +13,84 @@ import (
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/parser"
 )
 
+func TestParseCurrencyExchange4(t *testing.T) {
+	srv := parser.NewParser()
+
+	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+		{
+			Data: []byte(`1723.64USD Переказ на свою карту через Приват24
+4*67 15:16
+Бал. 123.59USD`),
+			Message: &database.Message{
+				CreatedAt: time.Now(),
+			},
+		},
+		{
+			Data: []byte(`65550.00UAH Переказ зі своєї картки 46**67 через Приват24
+5*20 15:16
+Бал. 123.59UAH
+Кред. лiмiт 300000.0UAH`),
+			Message: &database.Message{
+				CreatedAt: time.Now(),
+			},
+		},
+	})
+
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Len(t, resp, 1)
+
+	assert.Equal(t, "1723.64", resp[0].SourceAmount.StringFixed(2))
+	assert.Equal(t, "USD", resp[0].SourceCurrency)
+	assert.Equal(t, "4*67", resp[0].SourceAccount)
+
+	assert.Equal(t, "65550.00", resp[0].DestinationAmount.StringFixed(2))
+	assert.Equal(t, "5*20", resp[0].DestinationAccount)
+	assert.Equal(t, "UAH", resp[0].DestinationCurrency)
+
+	assert.Equal(t, "Переказ на свою карту через Приват24", resp[0].Description)
+	assert.Equal(t, database.TransactionTypeInternalTransfer, resp[0].Type)
+}
+
+func TestParseCurrencyExchange3(t *testing.T) {
+	srv := parser.NewParser()
+
+	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+		{
+			Data: []byte(`65550.00UAH Переказ зі своєї картки 46**67 через Приват24
+5*20 15:16
+Бал. 123.59UAH
+Кред. лiмiт 300000.0UAH`),
+			Message: &database.Message{
+				CreatedAt: time.Now(),
+			},
+		},
+		{
+			Data: []byte(`1723.64USD Переказ на свою карту через Приват24
+4*67 15:16
+Бал. 123.59USD`),
+			Message: &database.Message{
+				CreatedAt: time.Now(),
+			},
+		},
+	})
+
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Len(t, resp, 1)
+
+	assert.Equal(t, "1723.64", resp[0].SourceAmount.StringFixed(2))
+	assert.Equal(t, "USD", resp[0].SourceCurrency)
+	assert.Equal(t, "4*67", resp[0].SourceAccount)
+
+	assert.Equal(t, "65550.00", resp[0].DestinationAmount.StringFixed(2))
+	assert.Equal(t, "5*20", resp[0].DestinationAccount)
+	assert.Equal(t, "UAH", resp[0].DestinationCurrency)
+
+	assert.Equal(t, "Переказ зі своєї картки 46**67 через Приват24", resp[0].Description)
+	assert.Equal(t, database.TransactionTypeInternalTransfer, resp[0].Type)
+}
+
 func TestParseSimpleExpense(t *testing.T) {
 	input := `1.33USD Розваги. Steam
 4*71 16:27
