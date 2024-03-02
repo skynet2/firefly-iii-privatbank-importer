@@ -146,8 +146,13 @@ func (p *Parser) Merge(
 				continue // not our tx
 			}
 
-			if tx.SourceAccount == f.SourceAccount && tx.DestinationAccount == unk {
-				tx.DestinationAccount = f.DestinationAccount
+			if tx.SourceAccount == f.SourceAccount {
+				if tx.DestinationAccount == unk {
+					tx.DestinationAccount = f.DestinationAccount
+				}
+				if f.DestinationAccount == unk {
+					f.DestinationAccount = tx.DestinationAccount
+				}
 			}
 
 			if tx.DestinationAccount != f.DestinationAccount ||
