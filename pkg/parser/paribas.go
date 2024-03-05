@@ -159,7 +159,7 @@ func (p *Paribas) ParseMessages(
 
 			switch transactionType {
 			case "Transakcja kartą", "Transakcja BLIK", "Prowizje i opłaty",
-				"Blokada środków":
+				"Blokada środków", "Operacja gotówkowa":
 				tx.Type = database.TransactionTypeExpense
 				tx.SourceAccount = account
 				tx.SourceAmount = amountParsed.Abs()
@@ -275,6 +275,13 @@ func (p *Paribas) merge(
 
 			if len(f.DuplicateTransactions) > 0 {
 				continue // already merged
+			}
+
+			if f.SourceCurrency != "" && tx.SourceCurrency != "" && f.DestinationCurrency != "" && tx.DestinationCurrency != "" {
+				if !f.SourceAmount.Equal(tx.SourceAmount) &&
+					tx.DestinationCurrency == f.DestinationCurrency && tx.SourceCurrency == f.SourceCurrency {
+					continue // very similar tx with same description but as amounts are different mostlikely this two separate tx
+				}
 			}
 
 			if f.SourceCurrency == "" {

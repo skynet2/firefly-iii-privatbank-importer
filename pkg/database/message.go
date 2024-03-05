@@ -26,7 +26,6 @@ type Transaction struct {
 
 	SourceAmount        decimal.Decimal
 	SourceCurrency      string
-	OriginalTxType      string
 	DestinationAmount   decimal.Decimal
 	DestinationCurrency string
 
@@ -42,6 +41,9 @@ type Transaction struct {
 
 	OriginalMessage *Message `json:"-"`
 	ParsingError    error    `json:"-"`
+
+	OriginalTxType      string
+	OriginalNadawcaName string
 }
 
 type TransactionType int32

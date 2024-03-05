@@ -50,6 +50,59 @@ var pshelevExpense []byte
 //go:embed testdata/account_commission.xlsx
 var accountCommission []byte
 
+//go:embed testdata/cash_withdrawal.xlsx
+var cashWithdrawal []byte
+
+//go:embed testdata/similar_transfers.xlsx
+var similarTransfers []byte
+
+func TestCashWithdrawal(t *testing.T) {
+	srv := parser.NewParibas()
+
+	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+		{
+			Data: cashWithdrawal,
+		},
+	})
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Len(t, resp, 1)
+
+	assert.Equal(t, database.TransactionTypeExpense, resp[0].Type)
+	assert.Equal(t, "600.00", resp[0].SourceAmount.StringFixed(2))
+	assert.Equal(t, "PLN", resp[0].SourceCurrency)
+	assert.Equal(t, "11111111111111111111111111", resp[0].SourceAccount)
+
+	assert.Equal(t, "00:00", resp[0].DateFromMessage)
+	assert.Equal(t, "2024-03-02 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
+	assert.Equal(t, "1111------222 XX YY zz 4321321 POL 600,00 PLN 2024-03-02", resp[0].Description)
+}
+
+func TestSimilarTransfers(t *testing.T) {
+	srv := parser.NewParibas()
+
+	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+		{
+			Data: similarTransfers,
+		},
+	})
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Len(t, resp, 2)
+
+	assert.Equal(t, database.TransactionTypeRemoteTransfer, resp[0].Type)
+	assert.Equal(t, "11.68", resp[0].SourceAmount.StringFixed(2))
+	assert.Equal(t, "PLN", resp[0].SourceCurrency)
+	assert.Equal(t, "22222222222222222222222222", resp[0].SourceAccount)
+
+	assert.Equal(t, "00:00", resp[0].DateFromMessage)
+	assert.Equal(t, "2024-03-01 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
+	assert.Equal(t, "Common Desription", resp[0].Description)
+
+	assert.Equal(t, "22.16", resp[1].SourceAmount.StringFixed(2))
+	assert.Equal(t, "PLN", resp[1].SourceCurrency)
+}
+
 func TestExpenseCommission(t *testing.T) {
 	srv := parser.NewParibas()
 
