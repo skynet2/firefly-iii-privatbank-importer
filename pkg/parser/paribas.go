@@ -277,6 +277,13 @@ func (p *Paribas) merge(
 				continue // already merged
 			}
 
+			if f.SourceCurrency != "" && tx.SourceCurrency != "" && f.DestinationCurrency != "" && tx.DestinationCurrency != "" {
+				if !f.SourceAmount.Equal(tx.SourceAmount) &&
+					tx.DestinationCurrency == f.DestinationCurrency && tx.SourceCurrency == f.SourceCurrency {
+					continue // very similar tx with same description but as amounts are different mostlikely this two separate tx
+				}
+			}
+
 			if f.SourceCurrency == "" {
 				f.SourceCurrency = tx.SourceCurrency
 			}
