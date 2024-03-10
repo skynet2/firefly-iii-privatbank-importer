@@ -118,6 +118,32 @@ func TestParseSimpleExpense(t *testing.T) {
 	assert.Equal(t, database.TransactionTypeExpense, resp[0].Type)
 }
 
+func TestPartialRefund(t *testing.T) {
+	input := `1.01USD Зарахування
+4*71 09.03.24`
+
+	srv := parser.NewParser()
+
+	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+		{
+			Data: []byte(input),
+			Message: &database.Message{
+				CreatedAt: time.Now(),
+			},
+		},
+	})
+
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Len(t, resp, 1)
+
+	assert.Equal(t, "1.01", resp[0].DestinationAmount.String())
+	assert.Equal(t, "USD", resp[0].DestinationCurrency)
+	assert.Equal(t, "Зарахування", resp[0].Description)
+	assert.Equal(t, "4*71", resp[0].DestinationAccount)
+	assert.Equal(t, database.TransactionTypeIncome, resp[0].Type)
+}
+
 func TestParseSimpleExpense2(t *testing.T) {
 	input := `83.69PLN Інтернет-магазини. AliExpress
 4*67 12:19
