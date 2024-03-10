@@ -21,6 +21,7 @@ const (
 	simpleExpenseLinesCount  = 3
 	remoteTransferLinesCount = 3
 	incomeTransferLinesCount = 3
+	partialRefundLinesCount  = 2
 )
 
 const (
@@ -85,6 +86,13 @@ func (p *Parser) ParseMessages(
 			}
 
 			remote, err := p.ParseRemoteTransfer(ctx, raw, rawItem.Message.CreatedAt)
+
+			finalTx = p.appendTxOrError(finalTx, remote, err, raw, rawItem)
+			continue
+		}
+
+		if strings.HasSuffix(lines[0], "зарахування") {
+			remote, err := p.ParsePartialRefund(ctx, raw, rawItem.Message.CreatedAt)
 
 			finalTx = p.appendTxOrError(finalTx, remote, err, raw, rawItem)
 			continue
@@ -214,6 +222,46 @@ var (
 	internalTransferToRegex   = regexp.MustCompile(`(\d+.?\d+)([A-Z]{3}) (Переказ на свою карт[^ ]+ (?:(\d+\*\*\d+) )?(.*))$`)
 	internalTransferFromRegex = regexp.MustCompile(`(\d+.?\d+)([A-Z]{3}) (Переказ зі своєї карт[^ ]+ (\d+\*\*\d+) (.*))$`)
 )
+
+func (p *Parser) ParsePartialRefund(
+	_ context.Context,
+	raw string,
+	date time.Time,
+) (*database.Transaction, error) {
+	lines := toLines(raw)
+
+	if len(lines) < partialRefundLinesCount {
+		return nil, errors.Newf("expected %d lines, got %d", incomeTransferLinesCount, len(lines))
+	}
+
+	matches := incomeTransferRegex.FindStringSubmatch(lines[0])
+	if len(matches) != 4 {
+		return nil, errors.Newf("expected 4 matches, got %v", spew.Sdump(matches))
+	}
+
+	amount, err := decimal.NewFromString(matches[1])
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	source := strings.Split(lines[1], " ")
+	if len(source) != 2 {
+		return nil, errors.Newf("expected 2 source parts, got %v", spew.Sdump(source))
+	}
+
+	finalTx := &database.Transaction{
+		ID:                  uuid.NewString(),
+		Date:                date,
+		DestinationCurrency: matches[2],
+		Description:         matches[3],
+		DestinationAmount:   amount,
+		Type:                database.TransactionTypeIncome,
+		DestinationAccount:  source[0],
+		Raw:                 raw,
+	}
+
+	return finalTx, nil
+}
 
 func (p *Parser) ParseIncomeTransfer(
 	_ context.Context,
