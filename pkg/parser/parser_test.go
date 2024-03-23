@@ -13,6 +13,46 @@ import (
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/parser"
 )
 
+func TestConvertCurrency3(t *testing.T) {
+	srv := parser.NewParser()
+
+	t.Run("opt1", func(t *testing.T) {
+		resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+			{
+				Data: []byte(`5200.00UAH Переказ зі своєї карти 46**59 через додаток Приват24
+5*20 18:51
+Бал. 1.84UAH`),
+				Message: &database.Message{
+					CreatedAt: time.Now(),
+				},
+			},
+			{
+				Data: []byte(`133.78USD Переказ на свою картку через додаток Приват24
+4*59 18:51
+Бал. 1.95USD`),
+				Message: &database.Message{
+					CreatedAt: time.Now(),
+				},
+			},
+		})
+
+		assert.NoError(t, err)
+		assert.NotNil(t, resp)
+		assert.Len(t, resp, 1)
+
+		assert.Equal(t, "133.78", resp[0].SourceAmount.StringFixed(2))
+		assert.Equal(t, "USD", resp[0].SourceCurrency)
+		assert.Equal(t, "4*59", resp[0].SourceAccount)
+
+		assert.Equal(t, "5200.00", resp[0].DestinationAmount.StringFixed(2))
+		assert.Equal(t, "5*20", resp[0].DestinationAccount)
+		assert.Equal(t, "UAH", resp[0].DestinationCurrency)
+
+		assert.Equal(t, "Переказ зі своєї карти 46**59 через додаток Приват24", resp[0].Description)
+		assert.Equal(t, database.TransactionTypeInternalTransfer, resp[0].Type)
+	})
+}
+
 func TestParseCurrencyExchange4(t *testing.T) {
 	srv := parser.NewParser()
 
