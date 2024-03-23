@@ -70,7 +70,7 @@ func (p *Parser) ParseMessages(
 			continue
 		}
 
-		if strings.Contains(lower, "переказ на свою карту") || strings.Contains(lower, "переказ зі своєї карт") { // internal transfer
+		if strings.Contains(lower, "переказ на свою карт") || strings.Contains(lower, "переказ зі своєї карт") { // internal transfer
 			remote, err := p.ParseInternalTransfer(ctx, raw, rawItem.Message.CreatedAt)
 
 			finalTx = p.appendTxOrError(finalTx, remote, err, raw, rawItem)
