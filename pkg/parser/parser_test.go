@@ -13,6 +13,81 @@ import (
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/parser"
 )
 
+func TestTransferBetweenOwnCards(t *testing.T) {
+	srv := parser.NewParser()
+
+	t.Run("order 1", func(t *testing.T) {
+		resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+			{
+				Data: []byte(`1100.00USD Переказ зі своєї карти
+4*59 22:40
+Бал. 1.21USD`),
+				Message: &database.Message{
+					CreatedAt: time.Now(),
+				},
+			},
+			{
+				Data: []byte(`1100.00USD Зарахування переказу на картку
+4*71 22:40
+Бал. 1.60USD`),
+				Message: &database.Message{
+					CreatedAt: time.Now(),
+				},
+			},
+		})
+
+		assert.NoError(t, err)
+		assert.NotNil(t, resp)
+		assert.Len(t, resp, 1)
+
+		assert.Equal(t, "1100.00", resp[0].SourceAmount.StringFixed(2))
+		assert.Equal(t, "USD", resp[0].SourceCurrency)
+		assert.Equal(t, "4*59", resp[0].SourceAccount)
+
+		assert.Equal(t, "1100.00", resp[0].DestinationAmount.StringFixed(2))
+		assert.Equal(t, "4*71", resp[0].DestinationAccount)
+		assert.Equal(t, "USD", resp[0].DestinationCurrency)
+
+		assert.Equal(t, "Переказ зі своєї карти", resp[0].Description)
+		assert.Equal(t, database.TransactionTypeInternalTransfer, resp[0].Type)
+	})
+	t.Run("order 2", func(t *testing.T) {
+		resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+			{
+				Data: []byte(`1100.00USD Зарахування переказу на картку
+4*71 22:40
+Бал. 1.60USD`),
+				Message: &database.Message{
+					CreatedAt: time.Now(),
+				},
+			},
+			{
+				Data: []byte(`1100.00USD Переказ зі своєї карти
+4*59 22:40
+Бал. 1.21USD`),
+				Message: &database.Message{
+					CreatedAt: time.Now(),
+				},
+			},
+		})
+
+		assert.NoError(t, err)
+		assert.NotNil(t, resp)
+		assert.Len(t, resp, 1)
+
+		assert.Equal(t, "1100.00", resp[0].SourceAmount.StringFixed(2))
+		assert.Equal(t, "USD", resp[0].SourceCurrency)
+		assert.Equal(t, "4*59", resp[0].SourceAccount)
+
+		assert.Equal(t, "1100.00", resp[0].DestinationAmount.StringFixed(2))
+		assert.Equal(t, "4*71", resp[0].DestinationAccount)
+		assert.Equal(t, "USD", resp[0].DestinationCurrency)
+
+		assert.Equal(t, "Зарахування переказу на картку", resp[0].Description)
+		assert.Equal(t, database.TransactionTypeInternalTransfer, resp[0].Type)
+	})
+}
+
 func TestConvertCurrency3(t *testing.T) {
 	srv := parser.NewParser()
 

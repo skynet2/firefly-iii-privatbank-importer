@@ -70,7 +70,8 @@ func (p *Parser) ParseMessages(
 			continue
 		}
 
-		if strings.Contains(lower, "переказ на свою карт") || strings.Contains(lower, "переказ зі своєї карт") { // internal transfer
+		if strings.Contains(lower, "переказ на свою карт") ||
+			strings.Contains(lower, "переказ зі своєї карт") { // internal transfer
 			remote, err := p.ParseInternalTransfer(ctx, raw, rawItem.Message.CreatedAt)
 
 			finalTx = p.appendTxOrError(finalTx, remote, err, raw, rawItem)
@@ -86,6 +87,13 @@ func (p *Parser) ParseMessages(
 			}
 
 			remote, err := p.ParseRemoteTransfer(ctx, raw, rawItem.Message.CreatedAt)
+
+			finalTx = p.appendTxOrError(finalTx, remote, err, raw, rawItem)
+			continue
+		}
+
+		if strings.HasSuffix(lines[0], "зарахування переказу на картку") {
+			remote, err := p.ParseIncomingCardTransfer(ctx, raw, rawItem.Message.CreatedAt)
 
 			finalTx = p.appendTxOrError(finalTx, remote, err, raw, rawItem)
 			continue
@@ -119,18 +127,9 @@ func (p *Parser) Merge(
 	var finalTransactions []*database.Transaction
 
 	for _, tx := range messages {
-		if tx.Type != database.TransactionTypeInternalTransfer {
-			finalTransactions = append(finalTransactions, tx)
-			continue
-		}
-
 		// currently we have a transfer transaction, lets ensure that we dont have duplicates
 		isDuplicate := false
 		for _, f := range finalTransactions {
-			if f.Type != database.TransactionTypeInternalTransfer {
-				continue
-			}
-
 			if f.DateFromMessage == "" || tx.DateFromMessage == "" {
 				continue // missing date, can not merge
 			}
@@ -161,6 +160,28 @@ func (p *Parser) Merge(
 				if f.DestinationAccount == unk {
 					f.DestinationAccount = tx.DestinationAccount
 				}
+			}
+
+			if tx.DestinationAccount != "" &&
+				tx.Description == "Зарахування переказу на картку" &&
+				f.DestinationAccount == "" && f.Description == "Переказ зі своєї карти" &&
+				f.SourceAccount != "" {
+				f.DestinationAccount = tx.DestinationAccount
+				tx.SourceAccount = f.SourceAccount
+
+				f.Type = database.TransactionTypeInternalTransfer
+				tx.Type = database.TransactionTypeInternalTransfer
+			}
+
+			if tx.DestinationAccount == "" &&
+				tx.Description == "Переказ зі своєї карти" &&
+				f.DestinationAccount != "" &&
+				f.Description == "Зарахування переказу на картку" {
+				tx.DestinationAccount = f.DestinationAccount
+				f.SourceAccount = tx.SourceAccount
+
+				f.Type = database.TransactionTypeInternalTransfer
+				tx.Type = database.TransactionTypeInternalTransfer
 			}
 
 			if tx.DestinationAccount != f.DestinationAccount ||
@@ -223,6 +244,47 @@ var (
 	internalTransferFromRegex = regexp.MustCompile(`(\d+.?\d+)([A-Z]{3}) (Переказ зі своєї карт[^ ]+ (\d+\*\*\d+) (.*))$`)
 )
 
+func (p *Parser) ParseIncomingCardTransfer(
+	_ context.Context,
+	raw string,
+	date time.Time,
+) (*database.Transaction, error) {
+	lines := toLines(raw)
+
+	if len(lines) < partialRefundLinesCount {
+		return nil, errors.Newf("expected %d lines, got %d", partialRefundLinesCount, len(lines))
+	}
+
+	matches := incomeTransferRegex.FindStringSubmatch(lines[0])
+	if len(matches) != 4 {
+		return nil, errors.Newf("expected 4 matches, got %v", spew.Sdump(matches))
+	}
+
+	amount, err := decimal.NewFromString(matches[1])
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	source := strings.Split(lines[1], " ")
+	if len(source) != 2 {
+		return nil, errors.Newf("expected 2 source parts, got %v", spew.Sdump(source))
+	}
+
+	finalTx := &database.Transaction{
+		ID:                  uuid.NewString(),
+		Date:                date,
+		DestinationCurrency: matches[2],
+		Description:         matches[3],
+		DestinationAmount:   amount,
+		Type:                database.TransactionTypeIncome,
+		DestinationAccount:  source[0],
+		Raw:                 raw,
+		DateFromMessage:     source[1],
+	}
+
+	return finalTx, nil
+}
+
 func (p *Parser) ParsePartialRefund(
 	_ context.Context,
 	raw string,
@@ -258,6 +320,7 @@ func (p *Parser) ParsePartialRefund(
 		Type:                database.TransactionTypeIncome,
 		DestinationAccount:  source[0],
 		Raw:                 raw,
+		DateFromMessage:     source[1],
 	}
 
 	return finalTx, nil
@@ -298,6 +361,7 @@ func (p *Parser) ParseIncomeTransfer(
 		Type:                database.TransactionTypeIncome,
 		DestinationAccount:  source[0],
 		Raw:                 raw,
+		DateFromMessage:     source[1],
 	}
 
 	return finalTx, nil
@@ -440,14 +504,15 @@ func (p *Parser) ParseRemoteTransfer(
 	}
 
 	finalTx := &database.Transaction{
-		ID:             uuid.NewString(),
-		Date:           date,
-		SourceCurrency: matches[2],
-		Description:    matches[3],
-		SourceAmount:   amount,
-		Type:           database.TransactionTypeRemoteTransfer,
-		SourceAccount:  source[0],
-		Raw:            raw,
+		ID:              uuid.NewString(),
+		Date:            date,
+		SourceCurrency:  matches[2],
+		Description:     matches[3],
+		SourceAmount:    amount,
+		Type:            database.TransactionTypeRemoteTransfer,
+		SourceAccount:   source[0],
+		Raw:             raw,
+		DateFromMessage: source[1],
 	}
 
 	return finalTx, nil
@@ -481,14 +546,15 @@ func (p *Parser) ParseSimpleExpense(
 	}
 
 	finalTx := &database.Transaction{
-		ID:             uuid.NewString(),
-		Date:           date,
-		SourceCurrency: matches[2],
-		Description:    matches[3],
-		SourceAmount:   amount,
-		Type:           database.TransactionTypeExpense,
-		SourceAccount:  source[0],
-		Raw:            raw,
+		ID:              uuid.NewString(),
+		Date:            date,
+		SourceCurrency:  matches[2],
+		Description:     matches[3],
+		SourceAmount:    amount,
+		Type:            database.TransactionTypeExpense,
+		SourceAccount:   source[0],
+		Raw:             raw,
+		DateFromMessage: source[1],
 	}
 
 	for _, line := range lines {
@@ -505,7 +571,7 @@ func (p *Parser) ParseSimpleExpense(
 			}
 
 			rate, rateErr := decimal.NewFromString(sp[1])
-			if err != nil {
+			if rateErr != nil {
 				return nil, errors.Join(rateErr, errors.Newf("failed to parse rate %s", sp[1]))
 			}
 
