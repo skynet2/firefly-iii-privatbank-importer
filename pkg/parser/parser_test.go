@@ -13,6 +13,57 @@ import (
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/parser"
 )
 
+func TestExpensesShouldNotMerged(t *testing.T) {
+	srv := parser.NewParser()
+
+	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+		{
+			Data: []byte(`89.80PLN Ресторани, кафе, бари. Pyszne.pl, Wroclaw
+4*67 16:17
+Бал. 1.86USD
+Курс 0.2547 USD/PLN`),
+			Message: &database.Message{
+				CreatedAt: time.Now(),
+			},
+		},
+		{
+			Data: []byte(`8.98PLN Ресторани, кафе, бари. Pyszne.pl, Wroclaw
+4*67 16:18
+Бал. 236.57USD
+Курс 0.2550 USD/PLN`),
+			Message: &database.Message{
+				CreatedAt: time.Now(),
+			},
+		},
+	})
+
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Len(t, resp, 2)
+
+	assert.Equal(t, "22.87", resp[0].SourceAmount.StringFixed(2))
+	assert.Equal(t, "USD", resp[0].SourceCurrency)
+	assert.Equal(t, "4*67", resp[0].SourceAccount)
+
+	assert.Equal(t, "89.80", resp[0].DestinationAmount.StringFixed(2))
+	assert.Equal(t, "", resp[0].DestinationAccount)
+	assert.Equal(t, "PLN", resp[0].DestinationCurrency)
+
+	assert.Equal(t, "Ресторани, кафе, бари. Pyszne.pl, Wroclaw", resp[0].Description)
+	assert.Equal(t, database.TransactionTypeExpense, resp[0].Type)
+
+	assert.Equal(t, "2.29", resp[1].SourceAmount.StringFixed(2))
+	assert.Equal(t, "USD", resp[1].SourceCurrency)
+	assert.Equal(t, "4*67", resp[1].SourceAccount)
+
+	assert.Equal(t, "8.98", resp[1].DestinationAmount.StringFixed(2))
+	assert.Equal(t, "", resp[1].DestinationAccount)
+	assert.Equal(t, "PLN", resp[1].DestinationCurrency)
+
+	assert.Equal(t, "Ресторани, кафе, бари. Pyszne.pl, Wroclaw", resp[1].Description)
+	assert.Equal(t, database.TransactionTypeExpense, resp[1].Type)
+}
+
 func TestTransferBetweenOwnCards(t *testing.T) {
 	srv := parser.NewParser()
 

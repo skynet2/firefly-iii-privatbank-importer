@@ -184,6 +184,10 @@ func (p *Parser) Merge(
 				tx.Type = database.TransactionTypeInternalTransfer
 			}
 
+			if f.Type != database.TransactionTypeInternalTransfer && tx.Type != database.TransactionTypeInternalTransfer {
+				continue
+			}
+
 			if tx.DestinationAccount != f.DestinationAccount ||
 				tx.SourceAccount != f.SourceAccount {
 				continue
