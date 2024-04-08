@@ -1,0 +1,53 @@
+{
+  "id": "1024fa59-9b59-409b-bb52-211b05730ca1",
+  "legId": "1024fa59-9b59-409b-bb52-211b05730ca1",
+  "type": "CARD_PAYMENT",
+  "state": "PENDING",
+  "startedDate": 1712588335000,
+  "updatedDate": 1712588336539,
+  "createdDate": 1712588336539,
+  "currency": "USD",
+  "amount": -2946,
+  "fee": 0,
+  "description": "pyszne.pl",
+  "tag": "restaurants",
+  "category": "restaurants",
+  "account": {
+    "id": "source-account-id",
+    "type": "CURRENT"
+  },
+  "countryCode": "PL",
+  "rate": 3.924258678307339072506954375,
+  "merchant": {
+    "id": "526567000217260",
+    "merchantId": "4084e339-41d2-4b60-a118-931a41b1f2e8",
+    "scheme": "MASTERCARD",
+    "name": "Pyszne.pl",
+    "mcc": "5814",
+    "category": "restaurants",
+    "city": "Wroclaw",
+    "country": "PL",
+    "address": "Rybacka 9, 53-656, Wroclaw, PL",
+    "state": "PL",
+    "postcode": "53-656",
+    "logo": "https://storage.googleapis.com/revolut-prod-apps_merchant-logo/pyszne.pl",
+    "brandId": "333b0fe3-e3db-4a1d-8b5b-00d462d5e4df",
+    "canBeBlocked": true
+  },
+  "counterpart": {
+    "amount": -11560,
+    "currency": "PLN"
+  },
+  "card": {
+    "id": "card-id",
+    "lastFour": "1111",
+    "disposable": false,
+    "credit": false,
+    "pro": false
+  },
+  "ratings": {
+    "userRating": 0
+  },
+  "eCommerce": true,
+  "chargebackEligible": true
+}

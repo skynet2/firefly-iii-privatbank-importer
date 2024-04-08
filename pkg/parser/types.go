@@ -29,6 +29,12 @@ type revolutTransaction struct {
 	StartedDate   int64              `json:"startedDate"`
 	CreatedDate   int64              `json:"createdDate"`
 	CompletedDate int64              `json:"completedDate"`
+	Counterpart   revolutCounterPart `json:"counterpart"`
+}
+
+type revolutCounterPart struct {
+	Amount   int    `json:"amount"`
+	Currency string `json:"currency"`
 }
 
 func (m revolutTransaction) StartedAt() time.Time {

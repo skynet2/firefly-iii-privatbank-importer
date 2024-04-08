@@ -19,6 +19,12 @@ func NewRevolut() *Revolut {
 	return &Revolut{}
 }
 
+type parseFunc func(
+	parsedTx revolutTransaction,
+	raw string,
+	item *Record,
+) (*database.Transaction, error)
+
 func (p *Revolut) Type() database.TransactionSource {
 	return database.Revolut
 }
@@ -38,18 +44,25 @@ func (p *Revolut) ParseMessages(
 			continue
 		}
 
+		strRaw := p.toRaw(parsed)
+
+		var fn parseFunc
 		switch parsed.Type {
 		case "TRANSFER":
-			tx, err := p.parseTransfer(parsed, raw, rawItem)
-			if tx != nil {
-				finalTx = append(finalTx, tx)
-			}
-			if err != nil {
-				finalTx = appendTxOrError(finalTx, nil, err, string(rawItem.Data), rawItem)
-				continue
-			}
+			fn = p.parseTransfer
+		case "CARD_PAYMENT":
+			fn = p.parseCardPaymentExpense
 		default:
 			return nil, errors.Newf("unknown transaction type: %s", parsed.Type)
+		}
+
+		tx, err := fn(parsed, raw, rawItem)
+		if tx != nil {
+			finalTx = append(finalTx, tx)
+		}
+		if err != nil {
+			finalTx = appendTxOrError(finalTx, nil, err, strRaw, rawItem)
+			continue
 		}
 	}
 
@@ -85,6 +98,50 @@ func (p *Revolut) merge(
 			existing.DuplicateTransactions = append(existing.DuplicateTransactions, tx)
 			continue
 		}
+
+		txMap[tx.ID] = tx
+		finalTx = append(finalTx, tx)
+	}
+
+	return finalTx, nil
+}
+
+func (p *Revolut) toRaw(parsedTx revolutTransaction) string {
+	raw, _ := json.Marshal(parsedTx)
+	return string(raw)
+}
+
+func (p *Revolut) parseCardPaymentExpense(
+	parsedTx revolutTransaction,
+	raw string,
+	item *Record,
+) (*database.Transaction, error) {
+	amount := decimal.NewFromInt(int64(parsedTx.Amount)).Div(decimal.NewFromInt(100))
+	finalTx := &database.Transaction{
+		ID:                          parsedTx.Id.String(),
+		TransactionSource:           p.Type(),
+		Type:                        database.TransactionTypeExpense,
+		SourceAmount:                amount.Abs(),
+		SourceCurrency:              parsedTx.Currency,
+		Date:                        parsedTx.StartedAt(),
+		Description:                 parsedTx.Description,
+		SourceAccount:               parsedTx.Account.ID,
+		DestinationAccount:          "", // possible to get from merchant, but not sure if it's worth it
+		DateFromMessage:             parsedTx.StartedAt().String(),
+		Raw:                         raw,
+		InternalTransferDirectionTo: false,
+		OriginalMessage:             item.Message,
+		ParsingError:                nil,
+		OriginalTxType:              parsedTx.Type,
+		OriginalNadawcaName:         parsedTx.Tag,
+	}
+
+	if parsedTx.Counterpart.Amount != 0 {
+		finalTx.DestinationAmount = decimal.NewFromInt(int64(parsedTx.Counterpart.Amount)).Div(decimal.NewFromInt(100)).Abs()
+		finalTx.DestinationCurrency = parsedTx.Counterpart.Currency
+	} else {
+		finalTx.DestinationCurrency = finalTx.SourceCurrency
+		finalTx.DestinationAmount = finalTx.SourceAmount
 	}
 
 	return finalTx, nil
