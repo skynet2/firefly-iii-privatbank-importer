@@ -52,6 +52,8 @@ func (p *Revolut) ParseMessages(
 			fn = p.parseTransfer
 		case "CARD_PAYMENT":
 			fn = p.parseCardPaymentExpense
+		case "CARD_CREDIT":
+			fn = p.parseCardDeposit
 		default:
 			return nil, errors.Newf("unknown transaction type: %s", parsed.Type)
 		}
@@ -109,6 +111,36 @@ func (p *Revolut) merge(
 func (p *Revolut) toRaw(parsedTx revolutTransaction) string {
 	raw, _ := json.Marshal(parsedTx)
 	return string(raw)
+}
+
+func (p *Revolut) parseCardDeposit(
+	parsedTx revolutTransaction,
+	raw string,
+	item *Record,
+) (*database.Transaction, error) {
+	amount := decimal.NewFromInt(int64(parsedTx.Amount)).Div(decimal.NewFromInt(100))
+	finalTx := &database.Transaction{
+		ID:                          parsedTx.Id.String(),
+		TransactionSource:           p.Type(),
+		Type:                        database.TransactionTypeIncome,
+		SourceAmount:                amount.Abs(),
+		SourceCurrency:              parsedTx.Currency,
+		Date:                        parsedTx.StartedAt(),
+		Description:                 parsedTx.Description,
+		SourceAccount:               "",
+		DestinationAccount:          parsedTx.Account.ID,
+		DestinationAmount:           amount.Abs(),
+		DestinationCurrency:         parsedTx.Currency,
+		DateFromMessage:             parsedTx.StartedAt().String(),
+		Raw:                         raw,
+		InternalTransferDirectionTo: false,
+		OriginalMessage:             item.Message,
+		ParsingError:                nil,
+		OriginalTxType:              parsedTx.Type,
+		OriginalNadawcaName:         parsedTx.Tag,
+	}
+
+	return finalTx, nil
 }
 
 func (p *Revolut) parseCardPaymentExpense(
@@ -218,7 +250,7 @@ func (p *Revolut) parseTransfer(
 
 	// todo most likely multi currency transfers ?? wtf
 
-	matches := simpleExpenseRegex.FindStringSubmatch(parsedTx.Description)
+	matches := revolutSimpleTransferRegex.FindStringSubmatch(parsedTx.Description)
 	if len(matches) != 2 {
 		return nil, errors.Newf("expected 2 matches, got %v", spew.Sdump(matches))
 	}
