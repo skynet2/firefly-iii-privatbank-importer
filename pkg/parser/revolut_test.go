@@ -29,7 +29,7 @@ func TestCardExpenseMultiCurrency(t *testing.T) {
 	assert.Len(t, transactions, 1)
 
 	assert.EqualValues(t, "1024fa59-9b59-409b-bb52-211b05730ca1", transactions[0].ID)
-	assert.EqualValues(t, "2024-04-08 16:58:55 +0200 CEST", transactions[0].DateFromMessage)
+	assert.EqualValues(t, "2024-04-08 14:58:55 +0000 UTC", transactions[0].DateFromMessage)
 
 	assert.EqualValues(t, database.TransactionTypeExpense, transactions[0].Type)
 	assert.EqualValues(t, "USD", transactions[0].SourceCurrency)
@@ -53,7 +53,7 @@ func TestCardDeposit(t *testing.T) {
 	assert.Len(t, transactions, 1)
 
 	assert.EqualValues(t, "14e1d940-50e3-4579-ae86-b5280df28909", transactions[0].ID)
-	assert.EqualValues(t, "2024-04-07 13:39:08 +0200 CEST", transactions[0].DateFromMessage)
+	assert.EqualValues(t, "2024-04-07 11:39:08 +0000 UTC", transactions[0].DateFromMessage)
 
 	assert.EqualValues(t, database.TransactionTypeIncome, transactions[0].Type)
 	assert.EqualValues(t, "USD", transactions[0].SourceCurrency)

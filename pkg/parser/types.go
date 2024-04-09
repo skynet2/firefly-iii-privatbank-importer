@@ -38,7 +38,7 @@ type revolutCounterPart struct {
 }
 
 func (m revolutTransaction) StartedAt() time.Time {
-	return time.Unix(0, m.StartedDate*int64(time.Millisecond))
+	return time.Unix(0, m.StartedDate*int64(time.Millisecond)).UTC()
 }
 
 type revolutSender struct {
