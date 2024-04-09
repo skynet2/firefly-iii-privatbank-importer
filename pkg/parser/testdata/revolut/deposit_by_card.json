@@ -1,0 +1,30 @@
+{
+  "id": "14e1d940-50e3-4579-ae86-b5280df28909",
+  "legId": "14e1d940-50e3-4579-ae86-b5280df28909",
+  "type": "CARD_CREDIT",
+  "state": "COMPLETED",
+  "startedDate": 1712489948000,
+  "updatedDate": 1712489949302,
+  "completedDate": 1712489949303,
+  "createdDate": 1712489949302,
+  "currency": "USD",
+  "amount": 75000,
+  "fee": 0,
+  "description": "Monodirectfc",
+  "tag": "general",
+  "category": "general",
+  "account": {
+    "id": "receiver-account-id",
+    "type": "CURRENT"
+  },
+  "suggestions": [],
+  "localisedDescription": {
+    "key": "transaction.description.rev.payment.to.merchant",
+    "params": [
+      {
+        "key": "name",
+        "value": "Monodirectfc"
+      }
+    ]
+  }
+}

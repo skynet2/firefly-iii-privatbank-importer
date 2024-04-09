@@ -223,6 +223,10 @@ func (p *Parser) Merge(
 }
 
 func (p *Parser) appendTxOrError(finalTx []*database.Transaction, tx *database.Transaction, err error, raw string, item *Record) []*database.Transaction {
+	return appendTxOrError(finalTx, tx, err, raw, item)
+}
+
+func appendTxOrError(finalTx []*database.Transaction, tx *database.Transaction, err error, raw string, item *Record) []*database.Transaction {
 	if !lo.IsNil(tx) {
 		tx.OriginalMessage = item.Message
 		finalTx = append(finalTx, tx)

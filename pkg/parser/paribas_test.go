@@ -56,6 +56,56 @@ var cashWithdrawal []byte
 //go:embed testdata/similar_transfers.xlsx
 var similarTransfers []byte
 
+//go:embed testdata/blik_refund.xlsx
+var blikRefund []byte
+
+//go:embed testdata/inne_withdrawal.xlsx
+var inneWithdrawal []byte
+
+func TestInneWithdrawal(t *testing.T) {
+	srv := parser.NewParibas()
+
+	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+		{
+			Data: inneWithdrawal,
+		},
+	})
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Len(t, resp, 1)
+
+	assert.Equal(t, database.TransactionTypeExpense, resp[0].Type)
+	assert.Equal(t, "8.63", resp[0].SourceAmount.StringFixed(2))
+	assert.Equal(t, "PLN", resp[0].SourceCurrency)
+	assert.Equal(t, "111111111111111111111", resp[0].SourceAccount)
+
+	assert.Equal(t, "00:00", resp[0].DateFromMessage)
+	assert.Equal(t, "2024-04-04 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
+	assert.Equal(t, "Name Surname", resp[0].Description)
+}
+
+func TestBlikRefund(t *testing.T) {
+	srv := parser.NewParibas()
+
+	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+		{
+			Data: blikRefund,
+		},
+	})
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Len(t, resp, 1)
+
+	assert.Equal(t, database.TransactionTypeIncome, resp[0].Type)
+	assert.Equal(t, "2699.00", resp[0].SourceAmount.StringFixed(2))
+	assert.Equal(t, "PLN", resp[0].DestinationCurrency)
+	assert.Equal(t, "2222222222222222222222", resp[0].DestinationAccount)
+
+	assert.Equal(t, "00:00", resp[0].DateFromMessage)
+	assert.Equal(t, "2024-04-05 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
+	assert.Equal(t, "Transakcja BLIK, Zwrot dla transakcji TR-U4J-BVPHTYX, Zwrot BLIK internet, Nr 1234566, TERG SPÓŁKA AKCYJNA, REF-12345", resp[0].Description)
+}
+
 func TestCashWithdrawal(t *testing.T) {
 	srv := parser.NewParibas()
 
