@@ -159,14 +159,23 @@ func (p *Paribas) ParseMessages(
 
 			switch transactionType {
 			case "Transakcja kartą", "Transakcja BLIK", "Prowizje i opłaty",
-				"Blokada środków", "Operacja gotówkowa":
-				tx.Type = database.TransactionTypeExpense
-				tx.SourceAccount = account
-				tx.SourceAmount = amountParsed.Abs()
-				tx.SourceCurrency = currency
-				tx.DestinationCurrency = transactionCurrency
-				tx.DestinationAmount = kwotaParsed.Abs()
-				skipExtraChecks = true
+				"Blokada środków", "Operacja gotówkowa", "Inne operacje":
+				if amountParsed.GreaterThan(decimal.Zero) {
+					tx.Type = database.TransactionTypeIncome
+					tx.SourceAmount = amountParsed.Abs()
+					tx.SourceCurrency = currency
+					tx.DestinationCurrency = transactionCurrency
+					tx.DestinationAmount = kwotaParsed.Abs()
+					tx.DestinationAccount = account
+				} else {
+					tx.Type = database.TransactionTypeExpense
+					tx.SourceAccount = account
+					tx.SourceAmount = amountParsed.Abs()
+					tx.SourceCurrency = currency
+					tx.DestinationCurrency = transactionCurrency
+					tx.DestinationAmount = kwotaParsed.Abs()
+					skipExtraChecks = true
+				}
 			case "Przelew zagraniczny": // income
 				if kwotaParsed.IsPositive() {
 					tx.Type = database.TransactionTypeIncome
