@@ -570,7 +570,7 @@ func (p *Parser) ParseCreditPayment(
 		Type:            database.TransactionTypeExpense,
 		SourceAccount:   source[0],
 		Raw:             raw,
-		DateFromMessage: source[1],
+		DateFromMessage: "", // for some reason here its not time.. wtf
 	}
 
 	for _, line := range lines {

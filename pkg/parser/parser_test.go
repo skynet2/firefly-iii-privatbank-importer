@@ -308,6 +308,9 @@ func TestCreditExpense(t *testing.T) {
 	assert.Equal(t, "Списання", resp[0].Description)
 	assert.Equal(t, "4*40", resp[0].SourceAccount)
 	assert.Equal(t, database.TransactionTypeExpense, resp[0].Type)
+
+	_, err = srv.Merge(context.TODO(), resp)
+	assert.NoError(t, err)
 }
 
 func TestPartialRefund(t *testing.T) {
