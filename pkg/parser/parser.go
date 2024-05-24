@@ -22,6 +22,7 @@ const (
 	remoteTransferLinesCount = 3
 	incomeTransferLinesCount = 3
 	partialRefundLinesCount  = 2
+	creditPaymentLinesCount  = 2
 )
 
 const (
@@ -101,6 +102,13 @@ func (p *Parser) ParseMessages(
 
 		if strings.HasSuffix(lines[0], "зарахування") {
 			remote, err := p.ParsePartialRefund(ctx, raw, rawItem.Message.CreatedAt)
+
+			finalTx = p.appendTxOrError(finalTx, remote, err, raw, rawItem)
+			continue
+		}
+
+		if len(lines) == 2 && strings.HasSuffix(lines[0], " списання") {
+			remote, err := p.ParseCreditPayment(ctx, raw, rawItem.Message.CreatedAt)
 
 			finalTx = p.appendTxOrError(finalTx, remote, err, raw, rawItem)
 			continue
@@ -521,6 +529,95 @@ func (p *Parser) ParseRemoteTransfer(
 		SourceAccount:   source[0],
 		Raw:             raw,
 		DateFromMessage: source[1],
+	}
+
+	return finalTx, nil
+}
+
+func (p *Parser) ParseCreditPayment(
+	_ context.Context,
+	raw string,
+	date time.Time,
+) (*database.Transaction, error) {
+	raw = strings.ReplaceAll(raw, "\r\n", "\n")
+
+	lines := strings.Split(raw, "\n")
+	if len(lines) < creditPaymentLinesCount {
+		return nil, errors.Newf("expected %d lines, got %d", creditPaymentLinesCount, len(lines))
+	}
+
+	matches := simpleExpenseRegex.FindStringSubmatch(lines[0])
+	if len(matches) != 4 {
+		return nil, errors.Newf("expected 4 matches, got %v", spew.Sdump(matches))
+	}
+
+	amount, err := decimal.NewFromString(matches[1])
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	source := strings.Split(lines[1], " ")
+	if len(source) < 2 {
+		return nil, errors.Newf("expected 2 source parts, got %v", spew.Sdump(source))
+	}
+
+	finalTx := &database.Transaction{
+		ID:              uuid.NewString(),
+		Date:            date,
+		SourceCurrency:  matches[2],
+		Description:     matches[3],
+		SourceAmount:    amount,
+		Type:            database.TransactionTypeExpense,
+		SourceAccount:   source[0],
+		Raw:             raw,
+		DateFromMessage: source[1],
+	}
+
+	for _, line := range lines {
+		if strings.Contains(strings.ToLower(line), "курс ") { // apply exchange rate logic
+			sp := strings.Split(line, " ")
+
+			if len(sp) != 3 {
+				return nil, errors.Newf("expected 3 parts for курс, got %v", spew.Sdump(sp))
+			}
+
+			currencies := strings.Split(sp[2], "/")
+			if len(currencies) != 2 {
+				return nil, errors.Newf("expected 2 currencies, got %v", spew.Sdump(currencies))
+			}
+
+			rate, rateErr := decimal.NewFromString(sp[1])
+			if rateErr != nil {
+				return nil, errors.Join(rateErr, errors.Newf("failed to parse rate %s", sp[1]))
+			}
+
+			if currencies[1] == finalTx.SourceCurrency {
+				finalTx.DestinationCurrency = finalTx.SourceCurrency
+				finalTx.DestinationAmount = finalTx.SourceAmount
+
+				finalTx.SourceCurrency = currencies[0]
+				finalTx.SourceAmount = amount.Mul(rate)
+			} else if currencies[0] == finalTx.SourceCurrency {
+				finalTx.DestinationCurrency = finalTx.SourceCurrency
+				finalTx.DestinationAmount = finalTx.SourceAmount
+
+				finalTx.SourceCurrency = currencies[1]
+				finalTx.SourceAmount = amount.Div(rate)
+			} else {
+				return nil, errors.Newf("currency mismatch: %s %s", currencies[0], currencies[1])
+			}
+		}
+	}
+
+	for _, line := range lines {
+		balMatch := balanceRegex.FindStringSubmatch(line)
+		if len(balMatch) != 2 {
+			continue
+		}
+
+		if balMatch[1] != finalTx.SourceCurrency {
+			return nil, errors.Newf("currency mismatch: %s != %s", balMatch[1], finalTx.SourceCurrency)
+		}
 	}
 
 	return finalTx, nil
