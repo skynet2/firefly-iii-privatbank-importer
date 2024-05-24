@@ -284,6 +284,35 @@ func TestParseSimpleExpense(t *testing.T) {
 	assert.Equal(t, database.TransactionTypeExpense, resp[0].Type)
 }
 
+func TestCreditExpense(t *testing.T) {
+	input := `1466.60UAH Списання
+4*40 20.05.24`
+
+	srv := parser.NewParser()
+
+	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+		{
+			Data: []byte(input),
+			Message: &database.Message{
+				CreatedAt: time.Now(),
+			},
+		},
+	})
+
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Len(t, resp, 1)
+
+	assert.Equal(t, "1466.60", resp[0].SourceAmount.StringFixed(2))
+	assert.Equal(t, "UAH", resp[0].SourceCurrency)
+	assert.Equal(t, "Списання", resp[0].Description)
+	assert.Equal(t, "4*40", resp[0].SourceAccount)
+	assert.Equal(t, database.TransactionTypeExpense, resp[0].Type)
+
+	_, err = srv.Merge(context.TODO(), resp)
+	assert.NoError(t, err)
+}
+
 func TestPartialRefund(t *testing.T) {
 	input := `1.01USD Зарахування
 4*71 09.03.24`
