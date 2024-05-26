@@ -26,7 +26,8 @@ const (
 )
 
 const (
-	unk = "UNK"
+	unk                = "UNK"
+	incomeTransferText = "зарахування переказу з картки через приват24"
 )
 
 type Parser struct {
@@ -79,8 +80,8 @@ func (p *Parser) ParseMessages(
 			continue
 		}
 
-		if strings.Contains(lower, "переказ через ") { // remote transfer
-			if strings.Contains(lower, "відправник:") { // income
+		if strings.Contains(lower, "переказ через ") || strings.HasSuffix(lines[0], incomeTransferText) { // remote transfer
+			if strings.Contains(lower, "відправник:") || strings.HasSuffix(lines[0], incomeTransferText) { // income
 				remote, err := p.ParseIncomeTransfer(ctx, raw, rawItem.Message.CreatedAt)
 
 				finalTx = p.appendTxOrError(finalTx, remote, err, raw, rawItem)
