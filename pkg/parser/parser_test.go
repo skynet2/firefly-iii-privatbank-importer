@@ -284,6 +284,36 @@ func TestParseSimpleExpense(t *testing.T) {
 	assert.Equal(t, database.TransactionTypeExpense, resp[0].Type)
 }
 
+func TestIncomeTransferP2P(t *testing.T) {
+	input := `1466.60USD Зарахування переказу з картки через Приват24
+4*51 22:00
+Бал. 1.89USD`
+
+	srv := parser.NewParser()
+
+	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+		{
+			Data: []byte(input),
+			Message: &database.Message{
+				CreatedAt: time.Now(),
+			},
+		},
+	})
+
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Len(t, resp, 1)
+
+	assert.Equal(t, "1466.60", resp[0].DestinationAmount.StringFixed(2))
+	assert.Equal(t, "USD", resp[0].DestinationCurrency)
+	assert.Equal(t, "Зарахування переказу з картки через Приват24", resp[0].Description)
+	assert.Equal(t, "4*51", resp[0].DestinationAccount)
+	assert.Equal(t, database.TransactionTypeIncome, resp[0].Type)
+
+	_, err = srv.Merge(context.TODO(), resp)
+	assert.NoError(t, err)
+}
+
 func TestCreditExpense(t *testing.T) {
 	input := `1466.60UAH Списання
 4*40 20.05.24`
