@@ -11,15 +11,19 @@ type FetchRequest struct {
 }
 
 type Transaction struct {
-	Id            string             `json:"id"`
-	Type          string             `json:"type"`
-	State         string             `json:"state"`
-	Currency      string             `json:"currency"`
-	Amount        int32              `json:"amount"`
-	Description   string             `json:"description"`
-	Tag           string             `json:"tag"`
-	Comment       string             `json:"comment"`
-	Account       account            `json:"account"`
+	Id          string  `json:"id"`
+	Type        string  `json:"type"`
+	State       string  `json:"state"`
+	Currency    string  `json:"currency"`
+	Amount      int64   `json:"amount"`
+	Description string  `json:"description"`
+	Tag         string  `json:"tag"`
+	Comment     string  `json:"comment"`
+	Account     account `json:"account"`
+
+	FromAccount account `json:"fromAccount"`
+	ToAccount   account `json:"toAccount"`
+
 	Beneficiary   revolutBeneficiary `json:"beneficiary"`
 	Sender        revolutSender      `json:"sender"`
 	Recipient     revolutSender      `json:"recipient"`
@@ -27,6 +31,7 @@ type Transaction struct {
 	CreatedDate   int64              `json:"createdDate"`
 	CompletedDate int64              `json:"completedDate"`
 	Counterpart   revolutCounterPart `json:"counterpart"`
+	CountryCode   string             `json:"countryCode"`
 }
 
 type account struct {
@@ -40,10 +45,14 @@ type revolutBeneficiary struct {
 }
 
 type revolutSender struct {
-	Account account `json:"account"`
+	ID        string `json:"id"`
+	Type      string `json:"type"`
+	FirstName string `json:"firstName"`
+	LastName  string `json:"lastName"`
+	Code      string `json:"code"`
 }
 
 type revolutCounterPart struct {
-	Amount   int    `json:"amount"`
+	Amount   int64  `json:"amount"`
 	Currency string `json:"currency"`
 }
