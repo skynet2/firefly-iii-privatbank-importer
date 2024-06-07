@@ -21,12 +21,18 @@ func NewFetcher(
 	}
 }
 
-func (f *Fetcher) Fetch(ctx context.Context, req *FetchRequest) error {
+func (f *Fetcher) Fetch(ctx context.Context, req *FetchRequest) ([]*Transaction, error) {
 	to := int64(0)
-	var resultTxs []*transaction
+	var resultTxs []*Transaction
 
 	for ctx.Err() == nil {
 		httpReq := f.cl.NewRequest().
+			SetHeader("X-Browser-Application", "WEB_CLIENT").
+			SetHeader("X-Client-Version", "100.0").
+			SetHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36").
+			SetHeader("Referer", "https://app.revolut.com/transactions").
+			SetHeader("X-Device-Id", req.DeviceID).
+			SetHeader("Cookies", req.Cookies).
 			SetURL("https://app.revolut.com/api/retail/user/current/transactions/last?count=50")
 
 		if to > 0 {
@@ -35,25 +41,25 @@ func (f *Fetcher) Fetch(ctx context.Context, req *FetchRequest) error {
 
 		resp := httpReq.Do(ctx)
 		if resp.Err != nil {
-			return resp.Err
+			return nil, resp.Err
 		}
 
 		if resp.IsErrorState() {
-			return fmt.Errorf("error response: %v and body %s", resp.StatusCode, resp.String())
+			return nil, fmt.Errorf("error response: %v and body %s", resp.StatusCode, resp.String())
 		}
 
-		var txs []*transaction
+		var txs []*Transaction
 		if err := resp.UnmarshalJson(&txs); err != nil {
-			return err
+			return nil, err
 		}
 
 		if len(txs) == 0 {
 			break
 		}
 
-		var addedTxs []*transaction
+		var addedTxs []*Transaction
 		for _, tx := range txs {
-			parsedDate := time.Unix(tx.CreatedDate, 0)
+			parsedDate := time.UnixMilli(tx.StartedDate)
 
 			if parsedDate.After(req.After) {
 				addedTxs = append(addedTxs, tx)
@@ -66,11 +72,12 @@ func (f *Fetcher) Fetch(ctx context.Context, req *FetchRequest) error {
 
 		resultTxs = append(resultTxs, addedTxs...)
 
-		sort.Slice(addedTxs, func(i, j int) bool {
-			return addedTxs[i].CreatedDate > addedTxs[j].CreatedDate
+		sort.Slice(txs, func(i, j int) bool {
+			return txs[i].StartedDate > txs[j].StartedDate
 		})
 
-		to = addedTxs[len(addedTxs)-1].CreatedDate
+		to = txs[len(txs)-1].StartedDate
 	}
-	return nil
+
+	return resultTxs, nil
 }

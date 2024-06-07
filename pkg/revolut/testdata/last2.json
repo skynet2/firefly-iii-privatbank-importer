@@ -1,0 +1,33 @@
+[
+  {
+    "type": "CARD_CREDIT",
+    "state": "COMPLETED",
+    "startedDate": 1703158863000,
+    "updatedDate": 1703158863803,
+    "completedDate": 1703158863804,
+    "createdDate": 1703158863803,
+    "currency": "USD",
+    "amount": 70000
+  },
+  {
+    "type": "CARD_CREDIT",
+    "state": "COMPLETED",
+    "startedDate": 1703158863000,
+    "updatedDate": 1703158863803,
+    "completedDate": 1703158863804,
+    "createdDate": 1703158863803,
+    "currency": "USD",
+    "amount": 70000
+  },
+  {
+    "type": "CARD_PAYMENT",
+    "state": "COMPLETED",
+    "startedDate": 1703158638000,
+    "updatedDate": 1703210115940,
+    "completedDate": 1703210115938,
+    "createdDate": 1703158638724,
+    "currency": "USD",
+    "amount": -80000,
+    "fee": 0
+  }
+]

@@ -1,0 +1,35 @@
+[
+  {
+    "type": "CARD_CREDIT",
+    "state": "COMPLETED",
+    "startedDate": 1717610368000,
+    "updatedDate": 1717610369243,
+    "completedDate": 1717610369244,
+    "createdDate": 1717610369243,
+    "currency": "USD",
+    "amount": 70000
+  },
+  {
+    "type": "TRANSFER",
+    "state": "REVERTED",
+    "startedDate": 1712138204748,
+    "updatedDate": 1712138204808,
+    "createdDate": 1712138204748,
+    "currency": "PLN",
+    "amount": 39100,
+    "fee": 0,
+    "description": "Depositing savings",
+    "tag": "savings",
+    "category": "savings"
+  },
+  {
+    "type": "TRANSFER",
+    "state": "COMPLETED",
+    "startedDate": 1717407213804,
+    "updatedDate": 1717407790805,
+    "completedDate": 1717407790804,
+    "createdDate": 1717407213804,
+    "currency": "PLN",
+    "amount": -16000
+  }
+]

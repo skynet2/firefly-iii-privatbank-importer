@@ -1,0 +1,22 @@
+[
+  {
+    "type": "CARD_CREDIT",
+    "state": "COMPLETED",
+    "startedDate": 1703158863000,
+    "updatedDate": 1703158863803,
+    "completedDate": 1703158863804,
+    "createdDate": 1703158863803,
+    "currency": "USD",
+    "amount": 70000
+  },
+  {
+    "type": "TRANSFER",
+    "state": "COMPLETED",
+    "startedDate": 1117407790804,
+    "updatedDate": 1717407790805,
+    "completedDate": 1717407790804,
+    "createdDate": 1717407213804,
+    "currency": "PLN",
+    "amount": -16000
+  }
+]

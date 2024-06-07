@@ -5,11 +5,12 @@ import (
 )
 
 type FetchRequest struct {
-	Token string
-	After time.Time
+	Cookies  string
+	DeviceID string
+	After    time.Time
 }
 
-type transaction struct {
+type Transaction struct {
 	Id            string             `json:"id"`
 	Type          string             `json:"type"`
 	State         string             `json:"state"`
