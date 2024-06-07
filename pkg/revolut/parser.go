@@ -14,15 +14,15 @@ import (
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/parser"
 )
 
-type Mapper struct {
+type Parser struct {
 }
 
-func NewMapper() *Mapper {
-	return &Mapper{}
+func NewParser() *Parser {
+	return &Parser{}
 }
 
-func (p *Mapper) ParseMessages(
-	ctx context.Context,
+func (p *Parser) ParseMessages(
+	_ context.Context,
 	rawArr []*parser.Record,
 ) ([]*database.Transaction, error) {
 	var transactions []*database.Transaction
@@ -61,7 +61,7 @@ func (p *Mapper) ParseMessages(
 	return transactions, nil
 }
 
-func (p *Mapper) mapExchange(tx *database.Transaction, revolutTx *Transaction) error {
+func (p *Parser) mapExchange(tx *database.Transaction, revolutTx *Transaction) error {
 	tx.Type = database.TransactionTypeInternalTransfer // for me this is exchange
 
 	if revolutTx.Amount < 0 {
@@ -85,7 +85,7 @@ func (p *Mapper) mapExchange(tx *database.Transaction, revolutTx *Transaction) e
 	return nil
 }
 
-func (p *Mapper) mapExpense(tx *database.Transaction, revolutTx *Transaction) error {
+func (p *Parser) mapExpense(tx *database.Transaction, revolutTx *Transaction) error {
 	tx.Type = database.TransactionTypeExpense // for me this is expense
 
 	tx.SourceAmount = decimal.NewFromInt(revolutTx.Amount).Div(decimal.NewFromInt(100)).Abs()
@@ -112,6 +112,6 @@ func (p *Mapper) mapExpense(tx *database.Transaction, revolutTx *Transaction) er
 	return nil
 }
 
-func (p *Mapper) Type() database.TransactionSource {
+func (p *Parser) Type() database.TransactionSource {
 	return database.Revolut
 }
