@@ -284,6 +284,106 @@ func TestParseSimpleExpense(t *testing.T) {
 	assert.Equal(t, database.TransactionTypeExpense, resp[0].Type)
 }
 
+func TestParseSimpleRefund(t *testing.T) {
+	input := `120.52UAH Повернення. Транспорт. xx.yy
+4*68 15:09
+Бал. 329.89UAH`
+
+	srv := parser.NewParser()
+
+	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+		{
+			Data: []byte(input),
+			Message: &database.Message{
+				CreatedAt: time.Now(),
+			},
+		},
+	})
+
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Len(t, resp, 1)
+
+	assert.Equal(t, "120.52", resp[0].DestinationAmount.String())
+	assert.Equal(t, "UAH", resp[0].DestinationCurrency)
+	assert.Equal(t, "Повернення. Транспорт. xx.yy", resp[0].Description)
+	assert.Equal(t, "4*68", resp[0].DestinationAccount)
+	assert.Equal(t, database.TransactionTypeIncome, resp[0].Type)
+}
+
+func TestNewTransfer(t *testing.T) {
+	srv := parser.NewParser()
+
+	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+		{
+			Data: []byte(`40.00USD Переказ на свою карту через Приват24
+4*59 22:28
+Бал. 1486.74USD`),
+			Message: &database.Message{
+				CreatedAt: time.Now(),
+			},
+		},
+		{
+			Data: []byte(`40.00USD Зарахування переказу через Приват24 зі своєї картки
+4*71 22:28
+Бал. 61.20USD`),
+			Message: &database.Message{
+				CreatedAt: time.Now(),
+			},
+		},
+	})
+
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Len(t, resp, 1)
+
+	assert.Equal(t, "40", resp[0].DestinationAmount.String())
+	assert.Equal(t, "USD", resp[0].DestinationCurrency)
+	assert.Equal(t, "Переказ на свою карту через Приват24", resp[0].Description)
+	assert.Equal(t, "4*71", resp[0].DestinationAccount)
+
+	assert.Equal(t, "4*59", resp[0].SourceAccount)
+	assert.Equal(t, "40", resp[0].SourceAmount.String())
+	assert.Equal(t, database.TransactionTypeInternalTransfer, resp[0].Type)
+}
+
+func TestNewTransfer2(t *testing.T) {
+	srv := parser.NewParser()
+
+	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+
+		{
+			Data: []byte(`40.00USD Зарахування переказу через Приват24 зі своєї картки
+4*71 22:28
+Бал. 61.20USD`),
+			Message: &database.Message{
+				CreatedAt: time.Now(),
+			},
+		},
+		{
+			Data: []byte(`40.00USD Переказ на свою карту через Приват24
+4*59 22:28
+Бал. 1486.74USD`),
+			Message: &database.Message{
+				CreatedAt: time.Now(),
+			},
+		},
+	})
+
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Len(t, resp, 1)
+
+	assert.Equal(t, "40", resp[0].DestinationAmount.String())
+	assert.Equal(t, "USD", resp[0].DestinationCurrency)
+	assert.Equal(t, "Зарахування переказу через Приват24 зі своєї картки", resp[0].Description)
+	assert.Equal(t, "4*71", resp[0].DestinationAccount)
+
+	assert.Equal(t, "4*59", resp[0].SourceAccount)
+	assert.Equal(t, "40", resp[0].SourceAmount.String())
+	assert.Equal(t, database.TransactionTypeInternalTransfer, resp[0].Type)
+}
+
 func TestIncomeTransferP2P(t *testing.T) {
 	input := `1466.60USD Зарахування переказу з картки через Приват24
 4*51 22:00
