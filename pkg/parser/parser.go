@@ -94,7 +94,7 @@ func (p *Parser) ParseMessages(
 			continue
 		}
 
-		if strings.HasSuffix(lines[0], "зарахування переказу на картку") {
+		if strings.HasSuffix(lines[0], "зарахування переказу на картку") || strings.Contains(lower, "повернення.") || strings.HasSuffix(lines[0], "зарахування переказу через приват24 зі своєї картки") {
 			remote, err := p.ParseIncomingCardTransfer(ctx, raw, rawItem.Message.CreatedAt)
 
 			finalTx = p.appendTxOrError(finalTx, remote, err, raw, rawItem)
@@ -169,6 +169,37 @@ func (p *Parser) Merge(
 				if f.DestinationAccount == unk {
 					f.DestinationAccount = tx.DestinationAccount
 				}
+			}
+
+			if tx.SourceAccount == "" &&
+				tx.Description == "Зарахування переказу через Приват24 зі своєї картки" &&
+				f.Description == "Переказ на свою карту через Приват24" {
+
+				tx.SourceAccount = f.SourceAccount
+				tx.SourceAmount = f.SourceAmount
+				tx.SourceCurrency = f.SourceCurrency
+
+				f.DestinationAccount = tx.DestinationAccount
+				f.DestinationAmount = tx.DestinationAmount
+				f.DestinationCurrency = tx.DestinationCurrency
+
+				f.Type = database.TransactionTypeInternalTransfer
+				tx.Type = database.TransactionTypeInternalTransfer
+			}
+
+			if f.SourceAccount == "" && // revers of the above
+				f.Description == "Зарахування переказу через Приват24 зі своєї картки" &&
+				tx.Description == "Переказ на свою карту через Приват24" {
+				f.SourceAccount = tx.SourceAccount
+				f.SourceAmount = tx.SourceAmount
+				f.SourceCurrency = tx.SourceCurrency
+
+				tx.DestinationAccount = f.DestinationAccount
+				tx.DestinationAmount = f.DestinationAmount
+				tx.DestinationCurrency = f.DestinationCurrency
+
+				f.Type = database.TransactionTypeInternalTransfer
+				tx.Type = database.TransactionTypeInternalTransfer
 			}
 
 			if tx.DestinationAccount != "" &&
