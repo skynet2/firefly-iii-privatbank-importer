@@ -95,7 +95,8 @@ func (p *Parser) ParseMessages(
 		}
 
 		if strings.HasSuffix(lines[0], "зарахування переказу на картку") || strings.Contains(lower, "повернення.") ||
-			strings.HasSuffix(lines[0], "зарахування переказу через приват24 зі своєї картки") {
+			strings.HasSuffix(lines[0], "зарахування переказу через приват24 зі своєї картки") ||
+			strings.Contains(lines[0], "зарахування переказу.") {
 			remote, err := p.ParseIncomingCardTransfer(ctx, raw, rawItem.Message.CreatedAt)
 
 			finalTx = p.appendTxOrError(finalTx, remote, err, raw, rawItem)
@@ -247,6 +248,24 @@ func (p *Parser) Merge(
 				tx.DestinationAccount = f.DestinationAccount
 			}
 
+			// privat really fuck you.
+			if strings.HasPrefix(tx.Description, "Переказ на свою картку") &&
+				strings.HasPrefix(tx.DestinationAccount, "*") &&
+				strings.HasPrefix(f.Description, "Зарахування переказу") &&
+				f.SourceAccount == "" {
+				tx.DestinationAccount = f.DestinationAccount
+				f.SourceAccount = tx.SourceAccount
+			}
+
+			// reverse
+			if strings.HasPrefix(f.Description, "Переказ на свою картку") &&
+				strings.HasPrefix(f.DestinationAccount, "*") &&
+				strings.HasPrefix(tx.Description, "Зарахування переказу") &&
+				tx.SourceAccount == "" {
+				f.DestinationAccount = tx.DestinationAccount
+				tx.SourceAccount = f.SourceAccount
+			}
+
 			if tx.DestinationAccount != f.DestinationAccount ||
 				tx.SourceAccount != f.SourceAccount {
 				continue
@@ -265,6 +284,9 @@ func (p *Parser) Merge(
 			if f.SourceAmount.Equal(decimal.Zero) && tx.SourceAmount.GreaterThan(decimal.Zero) {
 				f.SourceAmount = tx.SourceAmount
 			}
+
+			f.Type = database.TransactionTypeInternalTransfer
+			tx.Type = database.TransactionTypeInternalTransfer
 
 			// otherwise we have a duplicate
 			f.DuplicateTransactions = append(f.DuplicateTransactions, tx)

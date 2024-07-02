@@ -139,6 +139,79 @@ func TestTransferBetweenOwnCards(t *testing.T) {
 	})
 }
 
+func TestTransferBetweenOwnCards3(t *testing.T) {
+	srv := parser.NewParser()
+
+	t.Run("order 1", func(t *testing.T) {
+		resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+			{
+				Data: []byte(`40.00USD Зарахування переказу. *1959
+4*71 11:11
+Бал. 1.37USD`),
+				Message: &database.Message{
+					CreatedAt: time.Now(),
+				},
+			},
+			{
+				Data: []byte(`40.00USD Переказ на свою картку. *6471
+4*59 11:11
+Бал. 1446.74USD`),
+				Message: &database.Message{
+					CreatedAt: time.Now(),
+				},
+			},
+		})
+		assert.NoError(t, err)
+		assert.NotNil(t, resp)
+		assert.Len(t, resp, 1)
+
+		assert.Equal(t, "40.00", resp[0].SourceAmount.StringFixed(2))
+		assert.Equal(t, "USD", resp[0].SourceCurrency)
+		assert.Equal(t, "4*59", resp[0].SourceAccount)
+
+		assert.Equal(t, "40.00", resp[0].DestinationAmount.StringFixed(2))
+		assert.Equal(t, "4*71", resp[0].DestinationAccount)
+		assert.Equal(t, "USD", resp[0].DestinationCurrency)
+
+		assert.Equal(t, "Зарахування переказу. *1959", resp[0].Description)
+		assert.Equal(t, database.TransactionTypeInternalTransfer, resp[0].Type)
+	})
+	t.Run("order 2", func(t *testing.T) {
+		resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+			{
+				Data: []byte(`40.00USD Переказ на свою картку. *6471
+4*59 11:11
+Бал. 1446.74USD`),
+				Message: &database.Message{
+					CreatedAt: time.Now(),
+				},
+			},
+			{
+				Data: []byte(`40.00USD Зарахування переказу. *1959
+4*71 11:11
+Бал. 1.37USD`),
+				Message: &database.Message{
+					CreatedAt: time.Now(),
+				},
+			},
+		})
+		assert.NoError(t, err)
+		assert.NotNil(t, resp)
+		assert.Len(t, resp, 1)
+
+		assert.Equal(t, "40.00", resp[0].SourceAmount.StringFixed(2))
+		assert.Equal(t, "USD", resp[0].SourceCurrency)
+		assert.Equal(t, "4*59", resp[0].SourceAccount)
+
+		assert.Equal(t, "40.00", resp[0].DestinationAmount.StringFixed(2))
+		assert.Equal(t, "4*71", resp[0].DestinationAccount)
+		assert.Equal(t, "USD", resp[0].DestinationCurrency)
+
+		assert.Equal(t, "Переказ на свою картку. *6471", resp[0].Description)
+		assert.Equal(t, database.TransactionTypeInternalTransfer, resp[0].Type)
+	})
+}
+
 func TestTransferBetweenOwnCards2(t *testing.T) {
 	srv := parser.NewParser()
 
