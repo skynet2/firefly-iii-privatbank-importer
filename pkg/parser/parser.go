@@ -94,7 +94,8 @@ func (p *Parser) ParseMessages(
 			continue
 		}
 
-		if strings.HasSuffix(lines[0], "зарахування переказу на картку") || strings.Contains(lower, "повернення.") || strings.HasSuffix(lines[0], "зарахування переказу через приват24 зі своєї картки") {
+		if strings.HasSuffix(lines[0], "зарахування переказу на картку") || strings.Contains(lower, "повернення.") ||
+			strings.HasSuffix(lines[0], "зарахування переказу через приват24 зі своєї картки") {
 			remote, err := p.ParseIncomingCardTransfer(ctx, raw, rawItem.Message.CreatedAt)
 
 			finalTx = p.appendTxOrError(finalTx, remote, err, raw, rawItem)
@@ -228,6 +229,24 @@ func (p *Parser) Merge(
 				continue
 			}
 
+			// privat fuck yourself. sometime card does not have first digit
+			if strings.HasPrefix(tx.Description, "Переказ зі своєї картки") &&
+				strings.HasPrefix(tx.SourceAccount, "*") &&
+				strings.HasPrefix(f.Description, "Переказ на свою картку") &&
+				strings.HasPrefix(f.DestinationAccount, "*") {
+				tx.SourceAccount = f.SourceAccount
+				f.DestinationAccount = tx.DestinationAccount
+			}
+
+			// reverse previous
+			if strings.HasPrefix(f.Description, "Переказ зі своєї картки") &&
+				strings.HasPrefix(f.SourceAccount, "*") &&
+				strings.HasPrefix(tx.Description, "Переказ на свою картку") &&
+				strings.HasPrefix(tx.DestinationAccount, "*") {
+				f.SourceAccount = tx.SourceAccount
+				tx.DestinationAccount = f.DestinationAccount
+			}
+
 			if tx.DestinationAccount != f.DestinationAccount ||
 				tx.SourceAccount != f.SourceAccount {
 				continue
@@ -289,7 +308,7 @@ var (
 	remoteTransferRegex       = simpleExpenseRegex
 	incomeTransferRegex       = simpleExpenseRegex
 	internalTransferToRegex   = regexp.MustCompile(`(\d+.?\d+)([A-Z]{3}) (Переказ на свою карт[^ ]+ (?:(\d+\*\*\d+) )?(.*))$`)
-	internalTransferFromRegex = regexp.MustCompile(`(\d+.?\d+)([A-Z]{3}) (Переказ зі своєї карт[^ ]+ (\d+\*\*\d+) (.*))$`)
+	internalTransferFromRegex = regexp.MustCompile(`(\d+.?\d+)([A-Z]{3}) (Переказ зі своєї карт[^ ]+ (\*?\d+\*?\*?\d+) ?(.*)?)$`)
 )
 
 func (p *Parser) ParseIncomingCardTransfer(
@@ -439,7 +458,7 @@ func (p *Parser) parseInternalTransferFrom(
 ) (*database.Transaction, error) {
 	matches := internalTransferFromRegex.FindStringSubmatch(lines[0])
 
-	if len(matches) != 6 {
+	if len(matches) < 5 {
 		return nil, errors.Newf("expected 6 matches, got %v", spew.Sdump(matches))
 	}
 
@@ -494,7 +513,12 @@ func (p *Parser) parseInternalTransferTo(
 		return nil, errors.Newf("expected 2 source parts, got %v", spew.Sdump(source))
 	}
 
-	destinationAccount := p.formatDestinationAccount(matches[4])
+	destRaw := matches[4]
+	if destRaw == "" && len(matches) == 6 {
+		destRaw = matches[5]
+	}
+
+	destinationAccount := p.formatDestinationAccount(destRaw)
 
 	if !strings.Contains(destinationAccount, "*") {
 		destinationAccount = unk
