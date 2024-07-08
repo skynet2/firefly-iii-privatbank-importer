@@ -14,6 +14,24 @@ import (
 //go:embed testdata/zen/income.csv
 var zenIncome []byte
 
+//go:embed testdata/zen/split.csv
+var zenSplit []byte
+
+func TestSplit(t *testing.T) {
+	srv := parser.NewZen()
+
+	resp, err := srv.SplitExcel(context.TODO(), zenSplit)
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+
+	assert.Len(t, resp, 8)
+	assert.EqualValues(t, "Date,Transaction type,Description,Settlement amount,Settlement currency,Original amount,Original currency,Currency rate,Fee description,Fee amount,Fee currency,Balance\n",
+		string(resp[0]))
+
+	assert.EqualValues(t, "19-Jun-24,Card payment,PAYPAL *user              LUX CARD: MASTERCARD *1122,-193.57,USD,-193.57,USD,1,Fee for processing transaction,,,\n",
+		string(resp[7]))
+}
+
 func TestParseIncome(t *testing.T) {
 	srv := parser.NewZen()
 

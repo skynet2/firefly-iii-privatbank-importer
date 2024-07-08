@@ -69,6 +69,10 @@ func (z *Zen) SplitCsv(
 			break
 		}
 
+		if targetLines[0][0] == "" {
+			break
+		}
+
 		var buf bytes.Buffer
 		writer := csv.NewWriter(&buf)
 		if err = writer.WriteAll(linesData[i : i+1]); err != nil {
@@ -129,6 +133,10 @@ func (z *Zen) parseTransaction(
 	tx *database.Transaction,
 	data []string,
 ) ([]*database.Transaction, error) {
+	if len(data) < 7 {
+		return nil, errors.Newf("expected at least 7 fields, got %d", len(data))
+	}
+
 	originalAmount, err := decimal.NewFromString(data[5])
 	if err != nil {
 		return nil, err
