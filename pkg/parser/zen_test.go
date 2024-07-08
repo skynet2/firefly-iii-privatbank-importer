@@ -24,12 +24,27 @@ func TestSplit(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
 
-	assert.Len(t, resp, 8)
-	assert.EqualValues(t, "Date,Transaction type,Description,Settlement amount,Settlement currency,Original amount,Original currency,Currency rate,Fee description,Fee amount,Fee currency,Balance\n",
+	assert.Len(t, resp, 7)
+	assert.EqualValues(t, "1-Jun-24,E-commerce recon,eCommerce settlement: 1234,5.69,USD,5,USD,1,Fee charge in the name of ZEN Technology B.V. for technical processing,-1.31,USD,\n",
 		string(resp[0]))
 
 	assert.EqualValues(t, "19-Jun-24,Card payment,PAYPAL *user              LUX CARD: MASTERCARD *1122,-193.57,USD,-193.57,USD,1,Fee for processing transaction,,,\n",
-		string(resp[7]))
+		string(resp[6]))
+
+	resp2, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+		{
+			Data: resp[0],
+		},
+		{
+			Data: resp[1],
+		},
+	})
+
+	assert.NoError(t, err)
+	assert.Len(t, resp2, 3)
+
+	assert.NoError(t, resp2[0].ParsingError)
+	assert.NoError(t, resp2[1].ParsingError)
 }
 
 func TestParseIncome(t *testing.T) {

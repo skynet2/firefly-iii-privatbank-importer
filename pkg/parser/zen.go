@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/csv"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
 	"unicode"
 
 	"github.com/cockroachdb/errors"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
@@ -62,6 +64,8 @@ func (z *Zen) SplitCsv(
 		return nil, errors.New("header not found")
 	}
 
+	headerIndex += 1
+
 	var resultFiles [][]byte
 	for i := headerIndex; i < len(linesData); i++ {
 		targetLines := linesData[i : i+1]
@@ -94,7 +98,12 @@ func (z *Zen) ParseMessages(
 	var transactions []*database.Transaction
 
 	for _, raw := range rawArr {
-		reader := csv.NewReader(bytes.NewReader(raw.Data))
+		rawCsv, err := hex.DecodeString(string(raw.Data))
+		if err != nil {
+			return nil, err
+		}
+
+		reader := csv.NewReader(bytes.NewReader(rawCsv))
 
 		tx := &database.Transaction{
 			ID:  uuid.NewString(),
@@ -134,7 +143,8 @@ func (z *Zen) parseTransaction(
 	data []string,
 ) ([]*database.Transaction, error) {
 	if len(data) < 7 {
-		return nil, errors.Newf("expected at least 7 fields, got %d", len(data))
+		return nil, errors.Newf("expected at least 7 fields, got %d. data : %v",
+			len(data), spew.Sdump(data))
 	}
 
 	originalAmount, err := decimal.NewFromString(data[5])
@@ -149,7 +159,7 @@ func (z *Zen) parseTransaction(
 		return !unicode.IsGraphic(r)
 	})
 
-	txData, err := time.Parse("02-Jan-06", invisibleChars)
+	txData, err := time.Parse("_2-Jan-06", invisibleChars)
 	if err != nil {
 		return nil, err
 	}
