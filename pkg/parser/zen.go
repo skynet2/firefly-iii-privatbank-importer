@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/csv"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 	"unicode"
@@ -18,6 +17,10 @@ import (
 )
 
 type Zen struct {
+}
+
+func (z *Zen) SplitExcel(ctx context.Context, data []byte) ([][]byte, error) {
+	return z.SplitCsv(ctx, data)
 }
 
 func NewZen() *Zen {
@@ -106,6 +109,10 @@ func (z *Zen) ParseMessages(
 			continue
 		}
 
+		if len(linesData) == 0 || len(linesData[0]) == 0 || linesData[0][0] == "" {
+			break
+		}
+
 		additionalTx, parsingErr := z.parseTransaction(tx, linesData[0])
 		if parsingErr != nil {
 			tx.ParsingError = parsingErr
@@ -117,8 +124,6 @@ func (z *Zen) ParseMessages(
 
 	return transactions, nil
 }
-
-var alphaNumericRegex = regexp.MustCompile("[^| ]+")
 
 func (z *Zen) parseTransaction(
 	tx *database.Transaction,

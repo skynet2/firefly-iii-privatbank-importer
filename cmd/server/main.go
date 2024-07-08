@@ -26,11 +26,19 @@ func main() {
 		panic(err)
 	}
 
+	var fireflyAdditionalHeaders map[string]string
+	if v, ok := os.LookupEnv("FIREFLY_ADDITIONAL_HEADERS"); ok {
+		if err = json.Unmarshal([]byte(v), &fireflyAdditionalHeaders); err != nil {
+			panic(err)
+		}
+	}
+
 	httpClient := req.DefaultClient()
 	fireflyClient := firefly.NewFirefly(
 		os.Getenv("FIREFLY_TOKEN"),
 		os.Getenv("FIREFLY_URL"),
 		httpClient,
+		fireflyAdditionalHeaders,
 	)
 
 	chatMap := map[string]database.TransactionSource{}
@@ -54,6 +62,7 @@ func main() {
 		[]processor.Parser{
 			parser.NewParser(),
 			parser.NewParibas(),
+			parser.NewZen(),
 		},
 		tgNotifier,
 		fireflyClient,

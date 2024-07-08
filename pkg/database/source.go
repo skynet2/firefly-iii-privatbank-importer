@@ -6,5 +6,5 @@ const (
 	PrivatBank = TransactionSource("privatbank")
 	Paribas    = TransactionSource("paribas")
 	Revolut    = TransactionSource("revolut")
-	Zen        = TransactionSource("Zen")
+	Zen        = TransactionSource("zen")
 )
