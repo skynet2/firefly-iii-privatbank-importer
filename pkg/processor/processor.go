@@ -5,9 +5,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/cockroachdb/errors"
+	"github.com/gammazero/workerpool"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
@@ -123,11 +123,9 @@ func (p *Processor) AddMessage(
 		})
 	}
 
-	for _, m := range targetMessages {
-		err := p.repo.AddMessage(ctx, m)
-		if err != nil {
-			return err
-		}
+	err := p.repo.AddMessage(ctx, targetMessages)
+	if err != nil {
+		return err
 	}
 
 	if err := p.notificationSvc.React(ctx, message.ChatID, message.MessageID, reactionAccepted); err != nil {
@@ -300,9 +298,16 @@ func (p *Processor) Commit(ctx context.Context, message Message) error {
 		return err
 	}
 
+	pool := workerpool.New(10)
 	for _, tx := range transactions {
-		p.CommitTransaction(ctx, tx, message)
+		txCopy := tx
+
+		pool.Submit(func() {
+			p.CommitTransaction(ctx, txCopy, message)
+		})
 	}
+
+	pool.StopWait()
 
 	if err = p.prettyPrint(ctx, transactions, errArr, message); err != nil {
 		p.SendErrorMessage(ctx, err, message)
@@ -311,16 +316,12 @@ func (p *Processor) Commit(ctx context.Context, message Message) error {
 	return nil
 }
 
-func (p *Processor) CommitTransaction(
-	ctx context.Context,
-	transaction *firefly.MappedTransaction,
-	requestMessage Message,
-) {
+func (p *Processor) CommitTransaction(ctx context.Context, transaction *firefly.MappedTransaction, requestMessage Message) []*database.Message {
 	if transaction.Original.OriginalMessage == nil {
 		transaction.FireflyMappingError = errors.Join(transaction.FireflyMappingError,
 			errors.Newf("original message is nil"))
 
-		return
+		return nil
 	}
 
 	transaction.IsCommitted = true
@@ -334,40 +335,25 @@ func (p *Processor) CommitTransaction(
 		reaction = failedToCommit
 	}
 
-	toUpdate := []*database.Message{
-		transaction.Original.OriginalMessage,
-	}
-	for _, tx := range transaction.Original.DuplicateTransactions {
-		toUpdate = append(toUpdate, tx.OriginalMessage)
+	toUpdate := []*CommitResult{
+		{
+			Msg:              transaction.Original.OriginalMessage,
+			ExpectedReaction: reaction,
+		},
 	}
 
-	for _, upd := range toUpdate {
-		if err := p.notificationSvc.React(ctx,
-			upd.ChatID,
-			upd.MessageID,
-			reaction,
-		); err != nil {
-			zerolog.Ctx(ctx).Error().Err(err).Msg("failed to react to message")
-		}
+	for _, tx := range transaction.Original.DuplicateTransactions {
+		toUpdate = append(toUpdate, &CommitResult{
+			ExpectedReaction: reaction,
+			Msg:              tx.OriginalMessage,
+		})
 	}
 
 	if transaction.FireflyMappingError != nil {
-		return
+		return nil
 	}
 
-	tt := time.Now().UTC()
-
-	for _, upd := range toUpdate {
-		upd.ProcessedAt = &tt
-		upd.IsProcessed = true
-
-		if err := p.repo.UpdateMessage(ctx, upd); err != nil {
-			transaction.FireflyMappingError = errors.Join(transaction.FireflyMappingError,
-				errors.Wrapf(err, "failed to update message"))
-
-			p.SendErrorMessage(ctx, transaction.FireflyMappingError, requestMessage)
-		}
-	}
+	return toUpdate
 }
 
 func (p *Processor) SendErrorMessage(ctx context.Context, err error, message Message) {

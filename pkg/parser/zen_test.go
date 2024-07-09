@@ -73,3 +73,16 @@ func TestParseIncome(t *testing.T) {
 	assert.Equal(t, "zen_EUR", resp[1].SourceAccount)
 	assert.Contains(t, resp[1].Description, "settlement diff for")
 }
+
+//func TestSplitBigFile(t *testing.T) {
+//	ff, err := os.OpenFile("/mnt/c/Users/iqpir/Downloads/statement-USD-06_2024.csv", os.O_RDONLY, 0)
+//	assert.NoError(t, err)
+//
+//	data, err := io.ReadAll(ff)
+//	assert.NoError(t, err)
+//	srv := parser.NewZen()
+//
+//	resp, err := srv.SplitExcel(context.TODO(), data)
+//	assert.NoError(t, err)
+//	assert.NotNil(t, resp)
+//}

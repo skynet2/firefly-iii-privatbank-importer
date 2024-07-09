@@ -42,6 +42,7 @@ func (z *Zen) SplitCsv(
 	data []byte,
 ) ([][]byte, error) {
 	reader := csv.NewReader(bytes.NewReader(data))
+	reader.FieldsPerRecord = -1
 
 	linesData, err := reader.ReadAll()
 	if err != nil {
@@ -104,10 +105,12 @@ func (z *Zen) ParseMessages(
 		}
 
 		reader := csv.NewReader(bytes.NewReader(rawCsv))
+		reader.FieldsPerRecord = -1
 
 		tx := &database.Transaction{
-			ID:  uuid.NewString(),
-			Raw: string(raw.Data),
+			ID:              uuid.NewString(),
+			Raw:             string(raw.Data),
+			OriginalMessage: raw.Message,
 		}
 		transactions = append(transactions, tx)
 
@@ -138,6 +141,26 @@ func (z *Zen) ParseMessages(
 	return transactions, nil
 }
 
+func (z *Zen) parseDate(input string) (time.Time, error) {
+	var templates = []string{
+		"_2-Jan-06",
+		"_2 Jan 2006",
+	}
+
+	var finalErr error
+	for _, template := range templates {
+		t, err := time.Parse(template, input)
+
+		finalErr = errors.Join(finalErr, err)
+
+		if err == nil {
+			return t, nil
+		}
+	}
+
+	return time.Time{}, finalErr
+}
+
 func (z *Zen) parseTransaction(
 	tx *database.Transaction,
 	data []string,
@@ -159,7 +182,7 @@ func (z *Zen) parseTransaction(
 		return !unicode.IsGraphic(r)
 	})
 
-	txData, err := time.Parse("_2-Jan-06", invisibleChars)
+	txData, err := z.parseDate(invisibleChars)
 	if err != nil {
 		return nil, err
 	}
