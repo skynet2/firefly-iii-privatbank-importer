@@ -5,9 +5,11 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cockroachdb/errors"
+	"github.com/gammazero/workerpool"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
@@ -23,28 +25,21 @@ const (
 )
 
 type Processor struct {
-	repo            Repo
-	parsers         map[database.TransactionSource]Parser
-	notificationSvc NotificationSvc
-	fireflySvc      Firefly
+	cfg *Config
+}
+
+type Config struct {
+	Repo            Repo
+	Parsers         map[database.TransactionSource]Parser
+	NotificationSvc NotificationSvc
+	FireflySvc      Firefly
 }
 
 func NewProcessor(
-	repo Repo,
-	parsers []Parser,
-	notificationSvc NotificationSvc,
-	fireflySvc Firefly,
+	cfg *Config,
 ) *Processor {
-	parser := make(map[database.TransactionSource]Parser)
-	for _, p := range parsers {
-		parser[p.Type()] = p
-	}
-
 	return &Processor{
-		repo:            repo,
-		fireflySvc:      fireflySvc,
-		parsers:         parser,
-		notificationSvc: notificationSvc,
+		cfg: cfg,
 	}
 }
 
@@ -85,12 +80,12 @@ func (p *Processor) AddMessage(
 	var targetMessages []database.Message
 
 	if message.FileID != "" {
-		fileData, fileErr := p.notificationSvc.GetFile(ctx, message.FileID)
+		fileData, fileErr := p.cfg.NotificationSvc.GetFile(ctx, message.FileID)
 		if fileErr != nil {
 			return errors.Wrapf(fileErr, "failed to get file")
 		}
 
-		splitted, err := p.parsers[message.TransactionSource].SplitExcel(ctx, fileData)
+		splitted, err := p.cfg.Parsers[message.TransactionSource].SplitExcel(ctx, fileData)
 		if err != nil {
 			return errors.Wrapf(err, "failed to split file")
 		}
@@ -123,14 +118,12 @@ func (p *Processor) AddMessage(
 		})
 	}
 
-	for _, m := range targetMessages {
-		err := p.repo.AddMessage(ctx, m)
-		if err != nil {
-			return err
-		}
+	err := p.cfg.Repo.AddMessage(ctx, targetMessages)
+	if err != nil {
+		return err
 	}
 
-	if err := p.notificationSvc.React(ctx, message.ChatID, message.MessageID, reactionAccepted); err != nil {
+	if err = p.cfg.NotificationSvc.React(ctx, message.ChatID, message.MessageID, reactionAccepted); err != nil {
 		zerolog.Ctx(ctx).Error().Err(err).Msg("failed to react to message")
 	}
 
@@ -138,18 +131,17 @@ func (p *Processor) AddMessage(
 }
 
 func (p *Processor) Clear(ctx context.Context, message Message) error {
-	return p.repo.Clear(ctx, message.TransactionSource)
+	return p.cfg.Repo.Clear(ctx, message.TransactionSource)
 }
 
 func (p *Processor) prettyPrint(
 	ctx context.Context,
 	mappedTx []*firefly.MappedTransaction,
 	errArr []error,
-
 	message Message,
 ) error {
 	if len(mappedTx) == 0 && len(errArr) == 0 {
-		if err := p.notificationSvc.SendMessage(ctx, message.ChatID, "No messages to process"); err != nil {
+		if err := p.cfg.NotificationSvc.SendMessage(ctx, message.ChatID, "No messages to process"); err != nil {
 			return err
 		}
 
@@ -224,7 +216,7 @@ func (p *Processor) prettyPrint(
 		sb.WriteString("\nAll Ok: ✅")
 	}
 
-	if err := p.notificationSvc.SendMessage(ctx, message.ChatID, sb.String()); err != nil {
+	if err := p.cfg.NotificationSvc.SendMessage(ctx, message.ChatID, sb.String()); err != nil {
 		return err
 	}
 
@@ -250,14 +242,14 @@ func (p *Processor) ProcessLatestMessages(
 	ctx context.Context,
 	transactionSource database.TransactionSource,
 ) ([]*firefly.MappedTransaction, []error, error) {
-	messages, err := p.repo.GetLatestMessages(ctx, transactionSource)
+	messages, err := p.cfg.Repo.GetLatestMessages(ctx, transactionSource)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	var parseErrorsArr []error
 
-	parser, ok := p.parsers[transactionSource]
+	parser, ok := p.cfg.Parsers[transactionSource]
 	if !ok {
 		return nil, nil, errors.Newf("parser for source %v not found", transactionSource)
 	}
@@ -285,7 +277,7 @@ func (p *Processor) ProcessLatestMessages(
 		return nil, nil, parserErr
 	}
 
-	mappedTransactions, err := p.fireflySvc.MapTransactions(ctx, transactions)
+	mappedTransactions, err := p.cfg.FireflySvc.MapTransactions(ctx, transactions)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -300,8 +292,50 @@ func (p *Processor) Commit(ctx context.Context, message Message) error {
 		return err
 	}
 
+	pool := workerpool.New(5)
+	var commitResults []*CommitResult
+	var mut sync.Mutex
+
 	for _, tx := range transactions {
-		p.CommitTransaction(ctx, tx, message)
+		txCopy := tx
+
+		pool.Submit(func() {
+			res := p.CommitTransaction(ctx, txCopy, message)
+			mut.Lock()
+			commitResults = append(commitResults, res...)
+			mut.Unlock()
+		})
+	}
+
+	pool.StopWait()
+
+	var messagesToUpdate []*database.Message
+	for _, tx := range commitResults {
+		if tx.Msg.IsProcessed {
+			messagesToUpdate = append(messagesToUpdate, tx.Msg)
+		}
+	}
+
+	if err = p.cfg.Repo.UpdateMessages(ctx, messagesToUpdate); err != nil {
+		return err
+	}
+
+	updatedMessages := map[int64]struct{}{}
+
+	for _, upd := range commitResults {
+		if _, ok := updatedMessages[upd.Msg.MessageID]; ok {
+			continue
+		}
+
+		if notifyErr := p.cfg.NotificationSvc.React(ctx,
+			upd.Msg.ChatID,
+			upd.Msg.MessageID,
+			upd.ExpectedReaction,
+		); notifyErr != nil {
+			zerolog.Ctx(ctx).Error().Err(notifyErr).Msg("failed to react to message")
+		}
+
+		updatedMessages[upd.Msg.MessageID] = struct{}{}
 	}
 
 	if err = p.prettyPrint(ctx, transactions, errArr, message); err != nil {
@@ -314,64 +348,54 @@ func (p *Processor) Commit(ctx context.Context, message Message) error {
 func (p *Processor) CommitTransaction(
 	ctx context.Context,
 	transaction *firefly.MappedTransaction,
-	requestMessage Message,
-) {
+	_ Message,
+) []*CommitResult {
 	if transaction.Original.OriginalMessage == nil {
 		transaction.FireflyMappingError = errors.Join(transaction.FireflyMappingError,
 			errors.Newf("original message is nil"))
 
-		return
+		return nil
 	}
 
-	transaction.IsCommitted = true
-	if _, err := p.fireflySvc.CreateTransactions(ctx, transaction.Transaction); err != nil {
+	if _, err := p.cfg.FireflySvc.CreateTransactions(ctx, transaction.Transaction); err != nil {
 		transaction.FireflyMappingError = errors.Join(transaction.FireflyMappingError,
 			errors.Wrapf(err, "failed to commit transaction"))
 	}
 
 	reaction := reactionCommitted
+
 	if transaction.FireflyMappingError != nil {
 		reaction = failedToCommit
+	} else {
+		transaction.IsCommitted = true
 	}
 
-	toUpdate := []*database.Message{
-		transaction.Original.OriginalMessage,
+	toUpdate := []*CommitResult{
+		{
+			Msg:              transaction.Original.OriginalMessage,
+			ExpectedReaction: reaction,
+		},
 	}
+
 	for _, tx := range transaction.Original.DuplicateTransactions {
-		toUpdate = append(toUpdate, tx.OriginalMessage)
+		toUpdate = append(toUpdate, &CommitResult{
+			ExpectedReaction: reaction,
+			Msg:              tx.OriginalMessage,
+		})
 	}
+
+	now := time.Now().UTC()
 
 	for _, upd := range toUpdate {
-		if err := p.notificationSvc.React(ctx,
-			upd.ChatID,
-			upd.MessageID,
-			reaction,
-		); err != nil {
-			zerolog.Ctx(ctx).Error().Err(err).Msg("failed to react to message")
-		}
+		upd.Msg.ProcessedAt = &now
+		upd.Msg.IsProcessed = true
 	}
 
-	if transaction.FireflyMappingError != nil {
-		return
-	}
-
-	tt := time.Now().UTC()
-
-	for _, upd := range toUpdate {
-		upd.ProcessedAt = &tt
-		upd.IsProcessed = true
-
-		if err := p.repo.UpdateMessage(ctx, upd); err != nil {
-			transaction.FireflyMappingError = errors.Join(transaction.FireflyMappingError,
-				errors.Wrapf(err, "failed to update message"))
-
-			p.SendErrorMessage(ctx, transaction.FireflyMappingError, requestMessage)
-		}
-	}
+	return toUpdate
 }
 
 func (p *Processor) SendErrorMessage(ctx context.Context, err error, message Message) {
-	if err = p.notificationSvc.SendMessage(ctx, message.ChatID,
+	if err = p.cfg.NotificationSvc.SendMessage(ctx, message.ChatID,
 		fmt.Sprintf("Failed to process command: %v\n Error: %v", message.Content, err)); err != nil {
 		zerolog.Ctx(ctx).Error().Err(err).Msg("failed to send message")
 	}

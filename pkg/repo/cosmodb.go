@@ -7,12 +7,14 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
 	"github.com/cockroachdb/errors"
+	"github.com/gammazero/workerpool"
 
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/database"
 )
 
 const (
 	messagesContainer = "messages"
+	defaultPoolSize   = 50
 )
 
 type Cosmo struct {
@@ -69,12 +71,9 @@ func (c *Cosmo) ignoreDuplicateErr(err error) error {
 	return err
 }
 
-func (c *Cosmo) AddMessage(ctx context.Context, message database.Message) error {
-	partitionKey := azcosmos.NewPartitionKeyString(string(message.TransactionSource))
-
-	bytes, err := json.Marshal(message)
-	if err != nil {
-		return err
+func (c *Cosmo) AddMessage(ctx context.Context, messages []database.Message) error {
+	if len(messages) == 0 {
+		return nil
 	}
 
 	container, err := c.getMessageContainer()
@@ -82,13 +81,38 @@ func (c *Cosmo) AddMessage(ctx context.Context, message database.Message) error 
 		return err
 	}
 
-	_, err = container.CreateItem(ctx, partitionKey, bytes, nil)
-	if err != nil {
-		return err
+	pool := workerpool.New(defaultPoolSize)
+
+	var finalErr error
+
+	for _, msg1 := range messages {
+		msgCopy := msg1
+
+		pool.Submit(func() {
+			if finalErr != nil {
+				return
+			}
+
+			partitionKey := azcosmos.NewPartitionKeyString(string(msgCopy.TransactionSource))
+			bytes, msgErr := json.Marshal(msgCopy)
+			if msgErr != nil {
+				finalErr = errors.Join(finalErr, msgErr)
+				return
+			}
+
+			_, err = container.CreateItem(ctx, partitionKey, bytes, nil)
+			if err != nil {
+				finalErr = errors.Join(finalErr, err)
+				return
+			}
+		})
 	}
+
+	pool.StopWait()
 
 	return nil
 }
+
 func (c *Cosmo) getMessageContainer() (*azcosmos.ContainerClient, error) {
 	if err := c.setupContainers(); err != nil {
 		return nil, err
@@ -144,31 +168,51 @@ func (c *Cosmo) Clear(ctx context.Context, transactionSource database.Transactio
 		return err
 	}
 
-	for _, m := range msg {
-		if _, deleteErr := container.DeleteItem(
-			ctx,
-			azcosmos.NewPartitionKeyString(string(transactionSource)), m.ID, nil); deleteErr != nil {
-			return deleteErr
-		}
+	pool := workerpool.New(defaultPoolSize)
+
+	for _, m1 := range msg {
+		copyMsg := m1
+
+		pool.Submit(func() {
+			if _, deleteErr := container.DeleteItem(
+				ctx,
+				azcosmos.NewPartitionKeyString(string(transactionSource)), copyMsg.ID, nil); deleteErr != nil {
+				err = errors.Join(err, deleteErr)
+			}
+		})
 	}
+
+	pool.StopWait()
 
 	return err
 }
 
-func (c *Cosmo) UpdateMessage(ctx context.Context, message *database.Message) error {
+func (c *Cosmo) UpdateMessages(ctx context.Context, messages []*database.Message) error {
 	container, err := c.getMessageContainer()
 	if err != nil {
 		return err
 	}
 
-	partitionKey := azcosmos.NewPartitionKeyString(string(message.TransactionSource))
+	pool := workerpool.New(defaultPoolSize)
+	for _, ms1 := range messages {
+		msCopy := ms1
 
-	bytes, err := json.Marshal(message)
-	if err != nil {
-		return err
+		pool.Submit(func() {
+			partitionKey := azcosmos.NewPartitionKeyString(string(msCopy.TransactionSource))
+			bytes, msgErr := json.Marshal(msCopy)
+			if msgErr != nil {
+				err = errors.Join(err, msgErr)
+				return
+			}
+
+			_, err = container.UpsertItem(ctx, partitionKey, bytes, nil)
+			if err != nil {
+				err = errors.Join(err, err)
+			}
+		})
 	}
 
-	_, err = container.UpsertItem(ctx, partitionKey, bytes, nil)
+	pool.StopWait()
 
 	return err
 }

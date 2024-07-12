@@ -7,6 +7,8 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v0.3.6
 	github.com/cockroachdb/errors v1.11.1
 	github.com/davecgh/go-spew v1.1.1
+	github.com/gammazero/workerpool v1.1.3
+	github.com/golang/mock v1.6.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
 	github.com/imroc/req/v3 v3.42.3
@@ -26,6 +28,7 @@ require (
 	github.com/cloudflare/circl v1.3.7 // indirect
 	github.com/cockroachdb/logtags v0.0.0-20230118201751-21c54148d20b // indirect
 	github.com/cockroachdb/redact v1.1.5 // indirect
+	github.com/gammazero/deque v0.2.0 // indirect
 	github.com/getsentry/sentry-go v0.18.0 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect

@@ -2,7 +2,6 @@ package firefly
 
 import (
 	"context"
-	"os"
 	"strings"
 	"time"
 
@@ -14,31 +13,43 @@ import (
 )
 
 type Firefly struct {
-	cl         *req.Client
-	apiKey     string
-	fireflyURL string
+	cl                *req.Client
+	apiKey            string
+	fireflyURL        string
+	additionalHeaders map[string]string
 }
 
 func NewFirefly(
 	apiKey string,
 	fireflyURL string,
 	cl *req.Client,
+	additionalHeaders map[string]string,
 ) *Firefly {
 	return &Firefly{
-		cl:         cl,
-		fireflyURL: fireflyURL,
-		apiKey:     apiKey,
+		cl:                cl,
+		fireflyURL:        fireflyURL,
+		apiKey:            apiKey,
+		additionalHeaders: additionalHeaders,
 	}
+}
+
+func (f *Firefly) getBaseRequest(ctx context.Context) *req.Request {
+	baseReq := f.cl.R().
+		SetContext(ctx).
+		SetBearerAuthToken(f.apiKey)
+
+	for k, v := range f.additionalHeaders {
+		baseReq = baseReq.SetHeader(k, v)
+	}
+
+	return baseReq
 }
 
 func (f *Firefly) ListAccounts(ctx context.Context) ([]*Account, error) {
 	var apiResp GenericApiResponse[[]*Account]
 
-	resp, err := f.cl.R().
-		SetContext(ctx).
-		SetBearerAuthToken(f.apiKey).
+	resp, err := f.getBaseRequest(ctx).
 		SetSuccessResult(&apiResp).
-		EnableDumpTo(os.Stdout).
 		SetHeader("Accept", "application/json").
 		SetQueryParam("limit", "100500").
 		Get(f.fireflyURL + "/api/v1/accounts")
@@ -193,11 +204,8 @@ func (f *Firefly) MapTransactions(
 func (f *Firefly) CreateTransactions(ctx context.Context, tx *Transaction) (*Transaction, error) {
 	var apiResp GenericApiResponse[Transaction]
 
-	resp, err := f.cl.R().
-		SetContext(ctx).
-		SetBearerAuthToken(f.apiKey).
+	resp, err := f.getBaseRequest(ctx).
 		SetSuccessResult(&apiResp).
-		EnableDumpTo(os.Stdout).
 		SetHeader("Accept", "application/json").
 		SetBody(map[string]interface{}{
 			"apply_rules":             true,

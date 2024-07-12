@@ -8,11 +8,13 @@ import (
 	parser2 "github.com/skynet2/firefly-iii-privatbank-importer/pkg/parser"
 )
 
+//go:generate mockgen -destination interfaces_mocks_test.go -package processor_test -source=interfaces.go
+
 type Repo interface {
-	AddMessage(ctx context.Context, message database.Message) error
+	AddMessage(ctx context.Context, messages []database.Message) error
 	GetLatestMessages(ctx context.Context, source database.TransactionSource) ([]*database.Message, error)
 	Clear(ctx context.Context, transactionSource database.TransactionSource) error
-	UpdateMessage(ctx context.Context, message *database.Message) error
+	UpdateMessages(ctx context.Context, message []*database.Message) error
 }
 
 type Parser interface {

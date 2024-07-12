@@ -23,6 +23,7 @@ func TestFirefly(t *testing.T) {
 		apiKey,
 		"https://example.com",
 		cl,
+		nil,
 	)
 
 	httpmock.RegisterResponder(

@@ -29,6 +29,7 @@ export COSMO_DB_NAME = "firefly-importer"
 export FIREFLY_URL = "https://firefly.example.com"
 export FIREFLY_TOKEN= "your_firefly_token"
 export TELEGRAM_BOT_TOKEN = "your_telegram_bot_token"
+export FIREFLY_ADDITIONAL_HEADERS = {"header1" : "val1", "header2" : "val2"}
 ```
 4. Set telegram webhook url to your host (endpoint /api/github/webhook)
 

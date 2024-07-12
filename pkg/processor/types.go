@@ -17,3 +17,8 @@ type Message struct {
 	TransactionSource database.TransactionSource
 	FileID            string
 }
+
+type CommitResult struct {
+	ExpectedReaction string
+	Msg              *database.Message
+}
