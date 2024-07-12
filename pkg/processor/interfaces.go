@@ -12,7 +12,7 @@ type Repo interface {
 	AddMessage(ctx context.Context, messages []database.Message) error
 	GetLatestMessages(ctx context.Context, source database.TransactionSource) ([]*database.Message, error)
 	Clear(ctx context.Context, transactionSource database.TransactionSource) error
-	UpdateMessage(ctx context.Context, message *database.Message) error
+	UpdateMessages(ctx context.Context, message []*database.Message) error
 }
 
 type Parser interface {

@@ -228,12 +228,13 @@ func (z *Zen) parseTransaction(
 		diffAmount := originalAmount.Sub(settlementAmount)
 
 		diffTx := &database.Transaction{
-			ID:             uuid.NewString(),
-			Type:           database.TransactionTypeExpense,
-			SourceAmount:   diffAmount,
-			SourceCurrency: originalCurrency,
-			SourceAccount:  z.AccountName(originalCurrency),
-			Date:           tx.Date,
+			ID:              uuid.NewString(),
+			Type:            database.TransactionTypeExpense,
+			SourceAmount:    diffAmount.Abs(),
+			SourceCurrency:  originalCurrency,
+			SourceAccount:   z.AccountName(originalCurrency),
+			Date:            tx.Date,
+			OriginalMessage: tx.OriginalMessage,
 			Description: fmt.Sprintf("settlement diff for %v. and original desc %v",
 				tx.ID,
 				tx.Description,
@@ -242,6 +243,9 @@ func (z *Zen) parseTransaction(
 
 		additionalTx = append(additionalTx, diffTx)
 	}
+
+	tx.SourceAmount = tx.SourceAmount.Abs()
+	tx.DestinationAmount = tx.DestinationAmount.Abs()
 
 	return additionalTx, nil
 }

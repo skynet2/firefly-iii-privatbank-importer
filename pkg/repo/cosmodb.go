@@ -14,6 +14,7 @@ import (
 
 const (
 	messagesContainer = "messages"
+	defaultPoolSize   = 50
 )
 
 type Cosmo struct {
@@ -80,7 +81,7 @@ func (c *Cosmo) AddMessage(ctx context.Context, messages []database.Message) err
 		return err
 	}
 
-	pool := workerpool.New(50)
+	pool := workerpool.New(defaultPoolSize)
 
 	var finalErr error
 
@@ -167,7 +168,7 @@ func (c *Cosmo) Clear(ctx context.Context, transactionSource database.Transactio
 		return err
 	}
 
-	pool := workerpool.New(50)
+	pool := workerpool.New(defaultPoolSize)
 
 	for _, m1 := range msg {
 		copyMsg := m1
@@ -186,20 +187,32 @@ func (c *Cosmo) Clear(ctx context.Context, transactionSource database.Transactio
 	return err
 }
 
-func (c *Cosmo) UpdateMessage(ctx context.Context, message *database.Message) error {
+func (c *Cosmo) UpdateMessages(ctx context.Context, messages []*database.Message) error {
 	container, err := c.getMessageContainer()
 	if err != nil {
 		return err
 	}
 
-	partitionKey := azcosmos.NewPartitionKeyString(string(message.TransactionSource))
+	pool := workerpool.New(defaultPoolSize)
+	for _, ms1 := range messages {
+		msCopy := ms1
 
-	bytes, err := json.Marshal(message)
-	if err != nil {
-		return err
+		pool.Submit(func() {
+			partitionKey := azcosmos.NewPartitionKeyString(string(msCopy.TransactionSource))
+			bytes, msgErr := json.Marshal(msCopy)
+			if msgErr != nil {
+				err = errors.Join(err, msgErr)
+				return
+			}
+
+			_, err = container.UpsertItem(ctx, partitionKey, bytes, nil)
+			if err != nil {
+				err = errors.Join(err, err)
+			}
+		})
 	}
 
-	_, err = container.UpsertItem(ctx, partitionKey, bytes, nil)
+	pool.StopWait()
 
 	return err
 }

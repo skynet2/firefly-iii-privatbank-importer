@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/cockroachdb/errors"
 	"github.com/gammazero/workerpool"
@@ -143,7 +145,6 @@ func (p *Processor) prettyPrint(
 	ctx context.Context,
 	mappedTx []*firefly.MappedTransaction,
 	errArr []error,
-
 	message Message,
 ) error {
 	if len(mappedTx) == 0 && len(errArr) == 0 {
@@ -298,16 +299,51 @@ func (p *Processor) Commit(ctx context.Context, message Message) error {
 		return err
 	}
 
-	pool := workerpool.New(10)
+	pool := workerpool.New(5)
+	var commitResults []*CommitResult
+	var mut sync.Mutex
+
 	for _, tx := range transactions {
 		txCopy := tx
 
 		pool.Submit(func() {
-			p.CommitTransaction(ctx, txCopy, message)
+			res := p.CommitTransaction(ctx, txCopy, message)
+			mut.Lock()
+			commitResults = append(commitResults, res...)
+			mut.Unlock()
 		})
 	}
 
 	pool.StopWait()
+
+	var messagesToUpdate []*database.Message
+	for _, tx := range commitResults {
+		if tx.Msg.IsProcessed {
+			messagesToUpdate = append(messagesToUpdate, tx.Msg)
+		}
+	}
+
+	if err = p.repo.UpdateMessages(ctx, messagesToUpdate); err != nil {
+		return err
+	}
+
+	updatedMessages := map[int64]struct{}{}
+
+	for _, upd := range commitResults {
+		if _, ok := updatedMessages[upd.Msg.MessageID]; ok {
+			continue
+		}
+
+		if notifyErr := p.notificationSvc.React(ctx,
+			upd.Msg.ChatID,
+			upd.Msg.MessageID,
+			upd.ExpectedReaction,
+		); notifyErr != nil {
+			zerolog.Ctx(ctx).Error().Err(notifyErr).Msg("failed to react to message")
+		}
+
+		updatedMessages[upd.Msg.MessageID] = struct{}{}
+	}
 
 	if err = p.prettyPrint(ctx, transactions, errArr, message); err != nil {
 		p.SendErrorMessage(ctx, err, message)
@@ -316,7 +352,11 @@ func (p *Processor) Commit(ctx context.Context, message Message) error {
 	return nil
 }
 
-func (p *Processor) CommitTransaction(ctx context.Context, transaction *firefly.MappedTransaction, requestMessage Message) []*database.Message {
+func (p *Processor) CommitTransaction(
+	ctx context.Context,
+	transaction *firefly.MappedTransaction,
+	_ Message,
+) []*CommitResult {
 	if transaction.Original.OriginalMessage == nil {
 		transaction.FireflyMappingError = errors.Join(transaction.FireflyMappingError,
 			errors.Newf("original message is nil"))
@@ -324,15 +364,17 @@ func (p *Processor) CommitTransaction(ctx context.Context, transaction *firefly.
 		return nil
 	}
 
-	transaction.IsCommitted = true
 	if _, err := p.fireflySvc.CreateTransactions(ctx, transaction.Transaction); err != nil {
 		transaction.FireflyMappingError = errors.Join(transaction.FireflyMappingError,
 			errors.Wrapf(err, "failed to commit transaction"))
 	}
 
 	reaction := reactionCommitted
+
 	if transaction.FireflyMappingError != nil {
 		reaction = failedToCommit
+	} else {
+		transaction.IsCommitted = true
 	}
 
 	toUpdate := []*CommitResult{
@@ -349,8 +391,11 @@ func (p *Processor) CommitTransaction(ctx context.Context, transaction *firefly.
 		})
 	}
 
-	if transaction.FireflyMappingError != nil {
-		return nil
+	now := time.Now().UTC()
+
+	for _, upd := range toUpdate {
+		upd.Msg.ProcessedAt = &now
+		upd.Msg.IsProcessed = true
 	}
 
 	return toUpdate
