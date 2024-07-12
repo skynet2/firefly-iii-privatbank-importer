@@ -3,6 +3,7 @@ package parser_test
 import (
 	"context"
 	_ "embed"
+	"encoding/hex"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -33,10 +34,10 @@ func TestSplit(t *testing.T) {
 
 	resp2, err := srv.ParseMessages(context.TODO(), []*parser.Record{
 		{
-			Data: resp[0],
+			Data: []byte(hex.EncodeToString(resp[0])),
 		},
 		{
-			Data: resp[1],
+			Data: []byte(hex.EncodeToString(resp[1])),
 		},
 	})
 
@@ -52,7 +53,7 @@ func TestParseIncome(t *testing.T) {
 
 	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
 		{
-			Data: zenIncome,
+			Data: []byte(hex.EncodeToString(zenIncome)),
 		},
 	})
 	assert.NoError(t, err)
