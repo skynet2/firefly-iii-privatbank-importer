@@ -23,3 +23,8 @@ go.work
 .idea/
 
 cmd/server/dist/
+
+**/*_mocks_test.go
+**/*_mock_test.go
+**/*_mock.go
+**/*_mocks.go

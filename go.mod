@@ -8,6 +8,7 @@ require (
 	github.com/cockroachdb/errors v1.11.1
 	github.com/davecgh/go-spew v1.1.1
 	github.com/gammazero/workerpool v1.1.3
+	github.com/golang/mock v1.6.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
 	github.com/imroc/req/v3 v3.42.3

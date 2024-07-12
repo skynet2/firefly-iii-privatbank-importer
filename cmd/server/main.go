@@ -57,16 +57,23 @@ func main() {
 		os.Getenv("TELEGRAM_BOT_TOKEN"),
 		httpClient,
 	)
-	processorSvc := processor.NewProcessor(
-		dataRepo,
-		[]processor.Parser{
-			parser.NewParser(),
-			parser.NewParibas(),
-			parser.NewZen(),
-		},
-		tgNotifier,
-		fireflyClient,
-	)
+
+	parserConfig := &processor.Config{
+		Repo:            dataRepo,
+		Parsers:         map[database.TransactionSource]processor.Parser{},
+		NotificationSvc: tgNotifier,
+		FireflySvc:      fireflyClient,
+	}
+
+	for _, p := range []processor.Parser{
+		parser.NewParser(),
+		parser.NewParibas(),
+		parser.NewZen(),
+	} {
+		parserConfig.Parsers[p.Type()] = p
+	}
+
+	processorSvc := processor.NewProcessor(parserConfig)
 	handle := NewHandler(processorSvc, chatMap)
 	r.Handle("/api/github/webhook", handle)
 
