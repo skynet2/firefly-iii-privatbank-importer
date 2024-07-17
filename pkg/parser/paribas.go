@@ -204,6 +204,8 @@ func (p *Paribas) ParseMessages(
 				tx.SourceCurrency = transactionCurrency
 				tx.SourceAmount = kwotaParsed.Abs()
 				tx.SourceAccount = destinationAccount
+
+				skipExtraChecks = true
 			case "Przelew wychodzący", "Przelew na telefon":
 				tx.Type = database.TransactionTypeRemoteTransfer // can be changed in merge
 				tx.DestinationAccount = destinationAccount

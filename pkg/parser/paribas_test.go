@@ -62,6 +62,9 @@ var blikRefund []byte
 //go:embed testdata/inne_withdrawal.xlsx
 var inneWithdrawal []byte
 
+//go:embed testdata/income_multicurrency.xlsx
+var incomeMultiCurrency []byte
+
 func TestInneWithdrawal(t *testing.T) {
 	srv := parser.NewParibas()
 
@@ -324,6 +327,7 @@ func TestParibasIncome(t *testing.T) {
 	assert.NotNil(t, resp)
 	assert.Len(t, resp, 1)
 
+	assert.NoError(t, resp[0].ParsingError)
 	assert.Equal(t, database.TransactionTypeIncome, resp[0].Type)
 	assert.Equal(t, "11.48", resp[0].DestinationAmount.StringFixed(2))
 	assert.Equal(t, "EUR", resp[0].DestinationCurrency)
@@ -336,6 +340,33 @@ func TestParibasIncome(t *testing.T) {
 	assert.Equal(t, "00:00", resp[0].DateFromMessage)
 	assert.Equal(t, "2024-02-01 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
 	assert.Equal(t, "SOFTWARE DEVELOPMENT SERVICES, INVOICE NO 1-2 XXYY, 31.01.2024", resp[0].Description)
+}
+
+func TestParibasIncomeMultiCurrency(t *testing.T) {
+	srv := parser.NewParibas()
+
+	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+		{
+			Data: incomeMultiCurrency,
+		},
+	})
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Len(t, resp, 1)
+
+	assert.NoError(t, resp[0].ParsingError)
+	assert.Equal(t, database.TransactionTypeIncome, resp[0].Type)
+	assert.Equal(t, "102.16", resp[0].DestinationAmount.StringFixed(2))
+	assert.Equal(t, "EUR", resp[0].DestinationCurrency)
+	assert.Equal(t, "22222222222222222222222222", resp[0].DestinationAccount)
+
+	assert.Equal(t, "500.00", resp[0].SourceAmount.StringFixed(2))
+	assert.Equal(t, "PLN", resp[0].SourceCurrency)
+	assert.Equal(t, "11111111111111111111111111", resp[0].SourceAccount)
+
+	assert.Equal(t, "00:00", resp[0].DateFromMessage)
+	assert.Equal(t, "2024-07-09 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
+	assert.Equal(t, "ID 4444444 5555555555555555555", resp[0].Description)
 }
 
 func TestParibasTransferToPrivateAccount(t *testing.T) {
