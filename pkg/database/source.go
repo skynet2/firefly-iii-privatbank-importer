@@ -7,4 +7,5 @@ const (
 	Paribas    = TransactionSource("paribas")
 	Revolut    = TransactionSource("revolut")
 	Zen        = TransactionSource("zen")
+	Mono       = TransactionSource("mono")
 )

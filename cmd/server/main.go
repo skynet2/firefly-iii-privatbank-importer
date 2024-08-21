@@ -69,6 +69,7 @@ func main() {
 		parser.NewParser(),
 		parser.NewParibas(),
 		parser.NewZen(),
+		parser.NewMono(),
 	} {
 		parserConfig.Parsers[p.Type()] = p
 	}
