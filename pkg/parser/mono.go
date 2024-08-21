@@ -155,8 +155,8 @@ func (m *Mono) parseTransaction(
 		}
 
 		tx.SourceAmount = sourceAmount.Abs()
-		tx.SourceCurrency = "UAH" // todo
-		tx.SourceAccount = "UAH"  // todo
+		tx.SourceCurrency = "UAH"               // todo
+		tx.SourceAccount = m.AccountName("UAH") // todo
 
 		tx.DestinationAmount = destAmount.Abs()
 		tx.DestinationCurrency = data[5]
