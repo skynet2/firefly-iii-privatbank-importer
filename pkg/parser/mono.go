@@ -154,11 +154,11 @@ func (m *Mono) parseTransaction(
 			return nil, errors.Wrapf(err, "failed to parse dest amount %s", data[4])
 		}
 
-		tx.SourceAmount = sourceAmount
+		tx.SourceAmount = sourceAmount.Abs()
 		tx.SourceCurrency = "UAH" // todo
 		tx.SourceAccount = "UAH"  // todo
 
-		tx.DestinationAmount = destAmount
+		tx.DestinationAmount = destAmount.Abs()
 		tx.DestinationCurrency = data[5]
 		tx.Description = data[1]
 	default:
