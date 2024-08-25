@@ -140,7 +140,8 @@ func (m *Mono) parseTransaction(
 	mcc := data[2]
 
 	switch mcc {
-	case "5262":
+	default:
+		//case "5262":
 		tx.Type = database.TransactionTypeExpense
 		tx.Date = operationTime
 
@@ -161,8 +162,8 @@ func (m *Mono) parseTransaction(
 		tx.DestinationAmount = destAmount.Abs()
 		tx.DestinationCurrency = data[5]
 		tx.Description = data[1]
-	default:
-		return nil, errors.Newf("unexpected MCC %s", mcc)
+		//default:
+		//	return nil, errors.Newf("unexpected MCC %s", mcc)
 	}
 
 	return nil, nil
