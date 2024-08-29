@@ -150,6 +150,10 @@ func (m *Mono) parseTransaction(
 			return nil, errors.Wrapf(err, "failed to parse source amount %s", data[3])
 		}
 
+		if sourceAmount.GreaterThan(decimal.Zero) {
+			return nil, errors.New("income operations are not supported. will skip")
+		}
+
 		destAmount, err := decimal.NewFromString(data[4])
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to parse dest amount %s", data[4])
