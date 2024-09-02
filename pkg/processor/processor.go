@@ -152,6 +152,7 @@ func (p *Processor) prettyPrint(
 	var sb strings.Builder
 	withErrors := 0
 	var duplicates []*firefly.MappedTransaction
+	var totalProcessed int
 
 	for _, tx := range mappedTx {
 		if tx.DuplicateError != nil {
@@ -159,6 +160,7 @@ func (p *Processor) prettyPrint(
 			continue
 		}
 
+		totalProcessed += 1
 		withErrors += p.fancyPrintTx(tx, &sb)
 	}
 
@@ -175,6 +177,7 @@ func (p *Processor) prettyPrint(
 		sb.WriteString(fmt.Sprintf("\nErrors: %v 🚒", withErrors))
 		sb.WriteString(fmt.Sprintf("\nDuplicates: %v ✨", len(duplicates)))
 	} else {
+		sb.WriteString(fmt.Sprintf("\nDuplicates: %v ✨", len(duplicates)))
 		sb.WriteString("\nAll Ok: ✅")
 	}
 
@@ -193,8 +196,10 @@ func (p *Processor) prettyPrint(
 		}
 	}
 
-	if err := p.cfg.NotificationSvc.SendMessage(ctx, message.ChatID, sb.String()); err != nil {
-		return err
+	if totalProcessed > 0 {
+		if err := p.cfg.NotificationSvc.SendMessage(ctx, message.ChatID, sb.String()); err != nil {
+			return err
+		}
 	}
 
 	return nil
