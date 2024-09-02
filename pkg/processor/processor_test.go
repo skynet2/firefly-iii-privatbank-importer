@@ -39,24 +39,31 @@ func TestDuplicateMessage(t *testing.T) {
 		dedup.EXPECT().IsDuplicate(gomock.Any(), "1234", database.PrivatBank).
 			Return(nil)
 
+		dedup.EXPECT().AddDuplicateKey(gomock.Any(), "1234", database.PrivatBank).
+			Return(nil)
+
 		messages := []*database.Message{
 			{
-				ChatID:    1234,
-				MessageID: 4321,
+				ChatID:            1234,
+				MessageID:         4321,
+				TransactionSource: database.PrivatBank,
 			},
 			{
-				ChatID:    1234,
-				MessageID: 4321,
+				ChatID:            1234,
+				MessageID:         4321,
+				TransactionSource: database.PrivatBank,
 			},
 		}
 		resultTxs := []*database.Transaction{
 			{
-				OriginalMessage:  messages[0],
-				DeduplicationKey: "1234",
+				OriginalMessage:   messages[0],
+				DeduplicationKey:  "1234",
+				TransactionSource: database.PrivatBank,
 			},
 			{
-				OriginalMessage:  messages[1],
-				DeduplicationKey: "111",
+				OriginalMessage:   messages[1],
+				DeduplicationKey:  "111",
+				TransactionSource: database.PrivatBank,
 			},
 		}
 
