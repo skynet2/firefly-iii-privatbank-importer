@@ -1,5 +1,6 @@
-package parser_test
+package _draft_test
 
+/*
 import (
 	"context"
 	_ "embed"
@@ -9,16 +10,17 @@ import (
 
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/database"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/parser"
+	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/parser/_draft"
 )
 
-//go:embed testdata/revolut/card_expense_multi_currency.json
+//go:embed ../testdata/revolut/card_expense_multi_currency.json
 var revolutCardExpenseMultiCurrency []byte
 
 //go:embed testdata/revolut/deposit_by_card.json
 var revolutDepositByCard []byte
 
 func TestCardExpenseMultiCurrency(t *testing.T) {
-	rev := parser.NewRevolut()
+	rev := _draft.NewRevolut()
 
 	transactions, err := rev.ParseMessages(context.Background(), []*parser.Record{
 		{
@@ -42,7 +44,7 @@ func TestCardExpenseMultiCurrency(t *testing.T) {
 }
 
 func TestCardDeposit(t *testing.T) {
-	rev := parser.NewRevolut()
+	rev := _draft.NewRevolut()
 
 	transactions, err := rev.ParseMessages(context.Background(), []*parser.Record{
 		{
@@ -63,3 +65,4 @@ func TestCardDeposit(t *testing.T) {
 
 	assert.EqualValues(t, "receiver-account-id", transactions[0].DestinationAccount)
 }
+*/

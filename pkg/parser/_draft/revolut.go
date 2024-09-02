@@ -1,5 +1,6 @@
-package parser
+package _draft
 
+/*
 import (
 	"context"
 	"encoding/json"
@@ -10,6 +11,7 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/database"
+	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/parser"
 )
 
 type Revolut struct {
@@ -22,7 +24,7 @@ func NewRevolut() *Revolut {
 type parseFunc func(
 	parsedTx revolutTransaction,
 	raw string,
-	item *Record,
+	item *parser.Record,
 ) (*database.Transaction, error)
 
 func (p *Revolut) Type() database.TransactionSource {
@@ -31,7 +33,7 @@ func (p *Revolut) Type() database.TransactionSource {
 
 func (p *Revolut) ParseMessages(
 	ctx context.Context,
-	rawArr []*Record,
+	rawArr []*parser.Record,
 ) ([]*database.Transaction, error) {
 	var finalTx []*database.Transaction
 
@@ -63,7 +65,7 @@ func (p *Revolut) ParseMessages(
 			finalTx = append(finalTx, tx)
 		}
 		if err != nil {
-			finalTx = appendTxOrError(finalTx, nil, err, strRaw, rawItem)
+			finalTx = parser.appendTxOrError(finalTx, nil, err, strRaw, rawItem)
 			continue
 		}
 	}
@@ -108,15 +110,15 @@ func (p *Revolut) merge(
 	return finalTx, nil
 }
 
-func (p *Revolut) toRaw(parsedTx revolutTransaction) string {
+func (p *Revolut) toRaw(parsedTx parser.revolutTransaction) string {
 	raw, _ := json.Marshal(parsedTx)
 	return string(raw)
 }
 
 func (p *Revolut) parseCardDeposit(
-	parsedTx revolutTransaction,
+	parsedTx parser.revolutTransaction,
 	raw string,
-	item *Record,
+	item *parser.Record,
 ) (*database.Transaction, error) {
 	amount := decimal.NewFromInt(int64(parsedTx.Amount)).Div(decimal.NewFromInt(100))
 	finalTx := &database.Transaction{
@@ -144,9 +146,9 @@ func (p *Revolut) parseCardDeposit(
 }
 
 func (p *Revolut) parseCardPaymentExpense(
-	parsedTx revolutTransaction,
+	parsedTx parser.revolutTransaction,
 	raw string,
-	item *Record,
+	item *parser.Record,
 ) (*database.Transaction, error) {
 	amount := decimal.NewFromInt(int64(parsedTx.Amount)).Div(decimal.NewFromInt(100))
 	finalTx := &database.Transaction{
@@ -180,9 +182,9 @@ func (p *Revolut) parseCardPaymentExpense(
 }
 
 func (p *Revolut) parseTransfer(
-	parsedTx revolutTransaction,
+	parsedTx parser.revolutTransaction,
 	raw string,
-	item *Record,
+	item *parser.Record,
 ) (*database.Transaction, error) {
 	amount := decimal.NewFromInt(int64(parsedTx.Amount)).Div(decimal.NewFromInt(100))
 	finalTx := &database.Transaction{
@@ -259,3 +261,4 @@ func (p *Revolut) parseTransfer(
 
 	return finalTx, nil
 }
+*/
