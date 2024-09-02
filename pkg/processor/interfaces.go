@@ -55,3 +55,17 @@ type NotificationSvc interface {
 
 	GetFile(ctx context.Context, fileID string) ([]byte, error)
 }
+
+type DuplicateCleaner interface {
+	IsDuplicate(
+		ctx context.Context,
+		key string,
+		txSource database.TransactionSource,
+	) error
+
+	AddDuplicateKey(
+		ctx context.Context,
+		key string,
+		txSource database.TransactionSource,
+	) error
+}

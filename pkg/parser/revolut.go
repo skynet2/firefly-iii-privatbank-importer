@@ -167,5 +167,13 @@ func (m *Revolut) parseTransaction(
 
 	tx.Description = fmt.Sprintf("%s.%s", data[0], data[3])
 
+	tx.DeduplicationKey = strings.Join([]string{
+		data[0],
+		data[2],
+		data[3],
+		data[4],
+		data[6],
+	}, "_")
+
 	return nil, nil
 }

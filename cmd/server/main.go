@@ -11,6 +11,7 @@ import (
 	"github.com/imroc/req/v3"
 
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/database"
+	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/duplicatecleaner"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/firefly"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/notifications"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/parser"
@@ -58,11 +59,14 @@ func main() {
 		httpClient,
 	)
 
+	dedup := duplicatecleaner.NewDuplicateCleaner(dataRepo)
+
 	parserConfig := &processor.Config{
-		Repo:            dataRepo,
-		Parsers:         map[database.TransactionSource]processor.Parser{},
-		NotificationSvc: tgNotifier,
-		FireflySvc:      fireflyClient,
+		Repo:             dataRepo,
+		Parsers:          map[database.TransactionSource]processor.Parser{},
+		NotificationSvc:  tgNotifier,
+		FireflySvc:       fireflyClient,
+		DuplicateCleaner: dedup,
 	}
 
 	for _, p := range []processor.Parser{
