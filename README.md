@@ -14,26 +14,34 @@ The Firefly III Importer is a tool designed to automate the process of importing
 ### PrivatBank (next.privat24.ua)
 - Protocol: Telegram Notifications
 - Supported Transaction Types: 
-  - Income
-  - Withdrawal
-  - Transfer
+  - [x] Income
+  - [x] Withdrawal
+  - [x] Transfer
+- [ ] Duplicate cleaner
 
 ### Paribas (goonline.bnpparibas.pl)
 - Protocol: XLSX (statements export)
 - Supported Transaction Types: 
-  - Income
-  - Withdrawal
-  - Transfer
+  - [x] Income
+  - [x] Withdrawal
+  - [x] Transfer
+- [ ] Duplicate cleaner
 
 ### MonoBank (monobank.ua)
 - Protocol: CSV
 - Supported Transaction Types: 
-  - Withdrawal
+  - [ ] Income
+  - [x] Withdrawal
+  - [ ] Transfer
+- [ ] Duplicate cleaner
 
 ### Revolut (revolut.com)
 - Protocol: CSV
 - Supported Transaction Types: 
-  - Withdrawal
+  - [ ] Income
+  - [x] Withdrawal
+  - [ ] Transfer
+- [x] Duplicate cleaner
 
 ### Server deployment
 1. cd cmd/server && go build -o server
