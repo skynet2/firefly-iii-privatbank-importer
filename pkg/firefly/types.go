@@ -25,6 +25,7 @@ type MappedTransaction struct {
 	Original            *database.Transaction
 	Transaction         *Transaction
 	FireflyMappingError error
+	DuplicateError      error
 	IsCommitted         bool
 }
 

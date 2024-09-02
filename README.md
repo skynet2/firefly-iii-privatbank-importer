@@ -1,4 +1,4 @@
-# firefly-iii-privatbank-importer
+# firefly-iii-importer
 
 ![build workflow](https://github.com/skynet2/firefly-iii-privatbank-importer/actions/workflows/general.yaml/badge.svg?branch=master)
 [![codecov](https://codecov.io/gh/skynet2/firefly-iii-privatbank-importer/branch/master/graph/badge.svg?token=5QV4Z8NR6V)](https://codecov.io/gh/skynet2/firefly-iii-privatbank-importer)
@@ -7,16 +7,41 @@
 
 
 ## Overview
-The Firefly III PrivatBank Importer is a tool designed to automate the process of importing banking transactions from PrivatBank into Firefly III, a self-hosted personal finance manager. Utilizing Telegram as an intermediary, this application captures transaction notifications from PrivatBank sent to a user's Telegram account and imports them into Firefly III, simplifying the management of personal finances.
+The Firefly III Importer is a tool designed to automate the process of importing banking transactions from banks into Firefly III, a self-hosted personal finance manager. 
 
-## Features
-Automatic Transaction Import: Seamlessly import transactions from PrivatBank into Firefly III.
-Telegram Bot Integration: Use a dedicated Telegram bot to process and forward banking notifications.
-Account and Currency Mapping: Automatically map PrivatBank accounts and currencies to their corresponding entities in Firefly III.
-Dry Run Mode: Preview transactions before committing them to Firefly III, ensuring accuracy.
-Commit and Clear Commands: Easily commit pending transactions or clear them if necessary.
+## Supported Banks
 
-## Setup
+### PrivatBank (next.privat24.ua)
+- Protocol: Telegram Notifications
+- Supported Transaction Types: 
+  - [x] Income
+  - [x] Withdrawal
+  - [x] Transfer
+- [ ] Duplicate cleaner
+
+### Paribas (goonline.bnpparibas.pl)
+- Protocol: XLSX (statements export)
+- Supported Transaction Types: 
+  - [x] Income
+  - [x] Withdrawal
+  - [x] Transfer
+- [ ] Duplicate cleaner
+
+### MonoBank (monobank.ua)
+- Protocol: CSV
+- Supported Transaction Types: 
+  - [ ] Income
+  - [x] Withdrawal
+  - [ ] Transfer
+- [ ] Duplicate cleaner
+
+### Revolut (revolut.com)
+- Protocol: CSV
+- Supported Transaction Types: 
+  - [ ] Income
+  - [x] Withdrawal
+  - [ ] Transfer
+- [x] Duplicate cleaner
 
 ### Server deployment
 1. cd cmd/server && go build -o server
@@ -34,7 +59,10 @@ export FIREFLY_ADDITIONAL_HEADERS = {"header1" : "val1", "header2" : "val2"}
 4. Set telegram webhook url to your host (endpoint /api/github/webhook)
 
 ## Bot Usage
-To use the Firefly III PrivatBank Importer, you need to set up a Telegram bot and connect it to your PrivatBank account to receive transaction notifications. Once set up, forward these notifications to your dedicated Telegram bot.
+To use the Firefly III Importer, you need to set up a Telegram bot and connect it to your group.
+
+### For PrivateBank
+Forward Privat notifications to Importer group.
 
 ## Default Bot Commands
 ### /dry - Perform a dry run. This command processes all pending messages without committing the transactions to Firefly III.

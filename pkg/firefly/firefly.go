@@ -96,10 +96,6 @@ func (f *Firefly) MapTransactions(
 
 	var finalTransactions []*MappedTransaction
 	for _, tx := range transactions {
-		if tx.ParsingError != nil {
-			continue
-		}
-
 		mapped := &MappedTransaction{
 			Original: tx,
 		}
@@ -205,7 +201,11 @@ func (f *Firefly) MapTransactions(
 	return finalTransactions, nil
 }
 
-func (f *Firefly) CreateTransactions(ctx context.Context, tx *Transaction) (*Transaction, error) {
+func (f *Firefly) CreateTransactions(
+	ctx context.Context,
+	tx *Transaction,
+	errorOnDuplicate bool,
+) (*Transaction, error) {
 	var apiResp GenericApiResponse[Transaction]
 
 	resp, err := f.getBaseRequest(ctx).
@@ -213,7 +213,7 @@ func (f *Firefly) CreateTransactions(ctx context.Context, tx *Transaction) (*Tra
 		SetHeader("Accept", "application/json").
 		SetBody(map[string]interface{}{
 			"apply_rules":             true,
-			"error_if_duplicate_hash": false,
+			"error_if_duplicate_hash": errorOnDuplicate,
 			"fire_webhooks":           true,
 			"transactions":            []*Transaction{tx},
 		}).

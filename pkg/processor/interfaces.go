@@ -36,7 +36,11 @@ type Firefly interface {
 		ctx context.Context,
 		transactions []*database.Transaction,
 	) ([]*firefly.MappedTransaction, error)
-	CreateTransactions(ctx context.Context, tx *firefly.Transaction) (*firefly.Transaction, error)
+	CreateTransactions(
+		ctx context.Context,
+		tx *firefly.Transaction,
+		errorOnDuplicate bool,
+	) (*firefly.Transaction, error)
 }
 
 type NotificationSvc interface {
@@ -54,4 +58,18 @@ type NotificationSvc interface {
 	) error
 
 	GetFile(ctx context.Context, fileID string) ([]byte, error)
+}
+
+type DuplicateCleaner interface {
+	IsDuplicate(
+		ctx context.Context,
+		key string,
+		txSource database.TransactionSource,
+	) error
+
+	AddDuplicateKey(
+		ctx context.Context,
+		key string,
+		txSource database.TransactionSource,
+	) error
 }

@@ -3,63 +3,35 @@ package parser_test
 import (
 	"context"
 	_ "embed"
+	"encoding/hex"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/database"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/parser"
 )
 
-//go:embed testdata/revolut/card_expense_multi_currency.json
-var revolutCardExpenseMultiCurrency []byte
+//go:embed testdata/revolut/simple_expense.csv
+var revolutExpense []byte
 
-//go:embed testdata/revolut/deposit_by_card.json
-var revolutDepositByCard []byte
+func TestRevolutSimple(t *testing.T) {
+	srv := parser.NewRevolut()
 
-func TestCardExpenseMultiCurrency(t *testing.T) {
-	rev := parser.NewRevolut()
+	resp, err := srv.SplitExcel(context.TODO(), revolutExpense)
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
 
-	transactions, err := rev.ParseMessages(context.Background(), []*parser.Record{
+	txs, err := srv.ParseMessages(context.TODO(), []*parser.Record{
 		{
-			Data: revolutCardExpenseMultiCurrency,
+			Data: []byte(hex.EncodeToString(resp[0])),
 		},
 	})
 	assert.NoError(t, err)
-	assert.Len(t, transactions, 1)
+	assert.Len(t, txs, 1)
 
-	assert.EqualValues(t, "1024fa59-9b59-409b-bb52-211b05730ca1", transactions[0].ID)
-	assert.EqualValues(t, "2024-04-08 14:58:55 +0000 UTC", transactions[0].DateFromMessage)
-
-	assert.EqualValues(t, database.TransactionTypeExpense, transactions[0].Type)
-	assert.EqualValues(t, "USD", transactions[0].SourceCurrency)
-	assert.EqualValues(t, "29.46", transactions[0].SourceAmount.StringFixed(2))
-	assert.EqualValues(t, "source-account-id", transactions[0].SourceAccount)
-
-	assert.EqualValues(t, "PLN", transactions[0].DestinationCurrency)
-	assert.EqualValues(t, "115.60", transactions[0].DestinationAmount.StringFixed(2))
-	assert.EqualValues(t, "pyszne.pl", transactions[0].Description)
-}
-
-func TestCardDeposit(t *testing.T) {
-	rev := parser.NewRevolut()
-
-	transactions, err := rev.ParseMessages(context.Background(), []*parser.Record{
-		{
-			Data: revolutDepositByCard,
-		},
-	})
-	assert.NoError(t, err)
-	assert.Len(t, transactions, 1)
-
-	assert.EqualValues(t, "14e1d940-50e3-4579-ae86-b5280df28909", transactions[0].ID)
-	assert.EqualValues(t, "2024-04-07 11:39:08 +0000 UTC", transactions[0].DateFromMessage)
-
-	assert.EqualValues(t, database.TransactionTypeIncome, transactions[0].Type)
-	assert.EqualValues(t, "USD", transactions[0].SourceCurrency)
-	assert.EqualValues(t, "USD", transactions[0].DestinationCurrency)
-	assert.EqualValues(t, "Monodirectfc", transactions[0].Description)
-	assert.EqualValues(t, "750.00", transactions[0].DestinationAmount.StringFixed(2))
-
-	assert.EqualValues(t, "receiver-account-id", transactions[0].DestinationAccount)
+	assert.EqualValues(t, "2024-09-02 10:31:35", txs[0].Date.Format(time.DateTime))
+	assert.EqualValues(t, "TRANSFER.To XXYYZZ", txs[0].Description)
+	assert.EqualValues(t, "USD", txs[0].SourceCurrency)
+	assert.EqualValues(t, "21.31", txs[0].SourceAmount.StringFixed(2))
 }
