@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/database"
+	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/firefly"
 )
 
 type Message struct {
@@ -21,4 +22,5 @@ type Message struct {
 type CommitResult struct {
 	ExpectedReaction string
 	Msg              *database.Message
+	Tx               *firefly.MappedTransaction
 }

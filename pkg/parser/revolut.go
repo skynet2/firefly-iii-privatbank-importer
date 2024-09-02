@@ -138,9 +138,9 @@ func (m *Revolut) parseTransaction(
 		return nil, errors.Wrapf(timeErr, "failed to parse operation time %s", data[0])
 	}
 
-	sourceAmount, err := decimal.NewFromString(data[4])
+	sourceAmount, err := decimal.NewFromString(data[5])
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to parse source amount %s", data[3])
+		return nil, errors.Wrapf(err, "failed to parse source amount %s", data[5])
 	}
 
 	if sourceAmount.GreaterThan(decimal.Zero) {
@@ -152,7 +152,7 @@ func (m *Revolut) parseTransaction(
 		"PENDING",
 	}
 
-	state := data[7]
+	state := data[8]
 
 	if !lo.Contains(supportedStates, state) {
 		return nil, errors.Newf("unsupported state %s", state)
@@ -162,17 +162,17 @@ func (m *Revolut) parseTransaction(
 	tx.Date = operationTime
 
 	tx.SourceAmount = sourceAmount.Abs()
-	tx.SourceCurrency = data[6]
+	tx.SourceCurrency = data[7]
 	tx.SourceAccount = m.AccountName(tx.SourceCurrency)
 
-	tx.Description = fmt.Sprintf("%s.%s", data[0], data[3])
+	tx.Description = fmt.Sprintf("%s.%s", data[0], data[4])
 
 	tx.DeduplicationKey = strings.Join([]string{
 		data[0],
 		data[2],
-		data[3],
 		data[4],
-		data[6],
+		data[5],
+		data[7],
 	}, "_")
 
 	return nil, nil

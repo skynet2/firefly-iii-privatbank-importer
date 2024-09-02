@@ -96,10 +96,6 @@ func (f *Firefly) MapTransactions(
 
 	var finalTransactions []*MappedTransaction
 	for _, tx := range transactions {
-		if tx.ParsingError != nil {
-			continue
-		}
-
 		mapped := &MappedTransaction{
 			Original: tx,
 		}

@@ -12,6 +12,7 @@ import (
 	"github.com/gammazero/workerpool"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"github.com/samber/lo"
 
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/database"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/firefly"
@@ -191,6 +192,10 @@ func (p *Processor) prettyPrint(
 		duplicateSb.WriteString(fmt.Sprintf("\nTotal: %v", len(mappedTx)))
 		duplicateSb.WriteString(fmt.Sprintf("\nDuplicates: %v ✨", len(duplicates)))
 
+		if totalProcessed == 0 {
+			duplicateSb.WriteString("\nAll transactions are duplicates: ✅")
+		}
+
 		if err := p.cfg.NotificationSvc.SendMessage(ctx, message.ChatID, duplicateSb.String()); err != nil {
 			return err
 		}
@@ -308,9 +313,7 @@ func (p *Processor) ProcessLatestMessages(
 			Data:    []byte(message.Content),
 		}
 
-		if message.TransactionSource == database.Paribas ||
-			message.TransactionSource == database.Mono ||
-			message.TransactionSource == database.Revolut {
+		if message.TransactionSource == database.Paribas {
 			rec.Data, err = hex.DecodeString(message.Content)
 			if err != nil {
 				parseErrorsArr = append(parseErrorsArr, errors.Wrapf(err, "failed to decode hex"))
@@ -359,6 +362,8 @@ func (p *Processor) Commit(ctx context.Context, message Message) error {
 
 	for _, tx := range transactions {
 		if tx.DuplicateError != nil { // do not commit duplicates, but mark them
+			tx.Original.OriginalMessage.IsProcessed = true
+			tx.Original.OriginalMessage.ProcessedAt = lo.ToPtr(time.Now().UTC())
 			messagesToUpdate = append(messagesToUpdate, tx.Original.OriginalMessage)
 			continue
 		}
@@ -375,9 +380,17 @@ func (p *Processor) Commit(ctx context.Context, message Message) error {
 
 	pool.StopWait()
 
+	var finalErr error
+
 	for _, tx := range commitResults {
 		if tx.Msg.IsProcessed {
 			messagesToUpdate = append(messagesToUpdate, tx.Msg)
+		}
+
+		if tx.Tx != nil && tx.Tx.Original.DeduplicationKey != "" {
+			finalErr = errors.Join(finalErr,
+				p.cfg.DuplicateCleaner.AddDuplicateKey(ctx, tx.Tx.Original.DeduplicationKey, tx.Msg.TransactionSource),
+			)
 		}
 	}
 
@@ -441,6 +454,7 @@ func (p *Processor) CommitTransaction(
 
 	toUpdate := []*CommitResult{
 		{
+			Tx:               transaction,
 			Msg:              transaction.Original.OriginalMessage,
 			ExpectedReaction: reaction,
 		},
@@ -449,6 +463,7 @@ func (p *Processor) CommitTransaction(
 	for _, tx := range transaction.Original.DuplicateTransactions {
 		toUpdate = append(toUpdate, &CommitResult{
 			ExpectedReaction: reaction,
+			Tx:               transaction,
 			Msg:              tx.OriginalMessage,
 		})
 	}
