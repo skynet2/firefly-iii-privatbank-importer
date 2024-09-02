@@ -422,7 +422,11 @@ func (p *Processor) CommitTransaction(
 		return nil
 	}
 
-	if _, err := p.cfg.FireflySvc.CreateTransactions(ctx, transaction.Transaction); err != nil {
+	if _, err := p.cfg.FireflySvc.CreateTransactions(
+		ctx,
+		transaction.Transaction,
+		transaction.Original.DeduplicationKey != "",
+	); err != nil {
 		transaction.FireflyMappingError = errors.Join(transaction.FireflyMappingError,
 			errors.Wrapf(err, "failed to commit transaction"))
 	}

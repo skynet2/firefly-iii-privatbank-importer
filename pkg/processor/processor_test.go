@@ -79,7 +79,7 @@ func TestDuplicateMessage(t *testing.T) {
 				},
 			}, nil)
 
-		fireflySvc.EXPECT().CreateTransactions(gomock.Any(), fireflyTxs[0].Transaction).
+		fireflySvc.EXPECT().CreateTransactions(gomock.Any(), fireflyTxs[0].Transaction, true).
 			Return(&firefly.Transaction{}, nil)
 
 		repo.EXPECT().UpdateMessages(gomock.Any(), gomock.Any()).
@@ -222,10 +222,9 @@ func TestProcessorCommit(t *testing.T) {
 				database.PrivatBank: parser,
 			},
 		})
-
-		dedup.EXPECT().IsDuplicate(gomock.Any(), "111", database.PrivatBank).
-			Return(nil)
 		dedup.EXPECT().IsDuplicate(gomock.Any(), "1234", database.PrivatBank).
+			Return(nil)
+		dedup.EXPECT().IsDuplicate(gomock.Any(), "", database.PrivatBank).
 			Return(nil)
 
 		messages := []*database.Message{
@@ -244,8 +243,7 @@ func TestProcessorCommit(t *testing.T) {
 				DeduplicationKey: "1234",
 			},
 			{
-				OriginalMessage:  messages[1],
-				DeduplicationKey: "111",
+				OriginalMessage: messages[1],
 			},
 		}
 
@@ -268,9 +266,9 @@ func TestProcessorCommit(t *testing.T) {
 				},
 			}, nil)
 
-		fireflySvc.EXPECT().CreateTransactions(gomock.Any(), fireflyTxs[0].Transaction).
+		fireflySvc.EXPECT().CreateTransactions(gomock.Any(), fireflyTxs[0].Transaction, true).
 			Return(&firefly.Transaction{}, nil)
-		fireflySvc.EXPECT().CreateTransactions(gomock.Any(), fireflyTxs[1].Transaction).
+		fireflySvc.EXPECT().CreateTransactions(gomock.Any(), fireflyTxs[1].Transaction, false).
 			Return(&firefly.Transaction{}, nil)
 
 		repo.EXPECT().UpdateMessages(gomock.Any(), gomock.Any()).
