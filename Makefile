@@ -11,6 +11,10 @@ azure-deploy: build
 generate:
 	go generate ./...
 
+.PHONY: deploy-balances
+deploy-balances:
+	@docker build -t skydev/firefly-balances:0.0.1 -f images/balances/Dockerfile .
+
 .PHONY: lint
 lint: generate
 	golangci-lint run
