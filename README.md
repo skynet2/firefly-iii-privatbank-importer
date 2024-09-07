@@ -33,7 +33,7 @@ The Firefly III Importer is a tool designed to automate the process of importing
   - [ ] Income
   - [x] Withdrawal
   - [ ] Transfer
-- [ ] Duplicate cleaner
+- [x] Duplicate cleaner
 
 ### Revolut (revolut.com)
 - Protocol: CSV
