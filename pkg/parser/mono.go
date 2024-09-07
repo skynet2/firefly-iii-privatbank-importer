@@ -139,6 +139,8 @@ func (m *Mono) parseTransaction(
 
 	mcc := data[2]
 
+	tx.DeduplicationKey = strings.Join(data, "_")
+
 	switch mcc {
 	default:
 		//case "5262":

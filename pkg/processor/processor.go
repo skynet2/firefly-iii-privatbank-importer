@@ -361,7 +361,7 @@ func (p *Processor) Commit(ctx context.Context, message Message) error {
 	var messagesToUpdate []*database.Message
 
 	for _, tx := range transactions {
-		if tx.DuplicateError != nil { // do not commit duplicates, but mark them
+		if tx.DuplicateError != nil || tx.Original.ParsingError != nil { // do not commit duplicates, but mark them
 			tx.Original.OriginalMessage.IsProcessed = true
 			tx.Original.OriginalMessage.ProcessedAt = lo.ToPtr(time.Now().UTC())
 			messagesToUpdate = append(messagesToUpdate, tx.Original.OriginalMessage)
