@@ -25,7 +25,7 @@ The Firefly III Importer is a tool designed to automate the process of importing
   - [x] Income
   - [x] Withdrawal
   - [x] Transfer
-- [ ] Duplicate cleaner
+- [x] Duplicate cleaner
 
 ### MonoBank (monobank.ua)
 - Protocol: CSV
