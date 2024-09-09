@@ -63,6 +63,20 @@ func (p *Paribas) SplitExcel(
 	return resultFiles, nil
 }
 
+func (p *Paribas) ExtractFromCell(cells []*xlsx.Cell) string {
+	var values []string
+
+	for i, c := range cells {
+		values = append(values, c.String())
+
+		if i > 20 { // just to ensure no extra data
+			break
+		}
+	}
+
+	return strings.Join(values, "-")
+}
+
 func (p *Paribas) ParseMessages(
 	ctx context.Context,
 	rawArr []*Record,
@@ -109,6 +123,7 @@ func (p *Paribas) ParseMessages(
 				continue
 			}
 
+			tx.DeduplicationKey = p.ExtractFromCell(row.Cells)
 			date, cellErr := row.Cells[0].GetTime(false)
 			if cellErr != nil {
 				tx.ParsingError = errors.Join(cellErr, errors.Newf("can not parse date: %s", row.Cells[0].String()))
