@@ -78,7 +78,10 @@ func main() {
 		dbDailyAccount := dbDailyData[account.ID]
 
 		if !dbDailyAccount.Equal(account, dateNow) {
-			dbDailyAccount.simpleAccountData = account
+			dbDailyAccount.ID = account.ID
+			dbDailyAccount.Balance = account.Balance
+			dbDailyAccount.CurrencyID = account.CurrencyID
+
 			dbDailyAccount.Date = dateNow
 			dbDailyAccount.UpdatedAt = time.Now().UTC()
 

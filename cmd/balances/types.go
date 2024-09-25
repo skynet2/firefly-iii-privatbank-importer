@@ -52,8 +52,12 @@ func (s simpleAccountData) TableName() string {
 }
 
 type simpleAccountDataDaily struct {
-	simpleAccountData
-	Date time.Time
+	ID         int `gorm:"primaryKey"`
+	Balance    decimal.Decimal
+	CurrencyID int
+	UpdatedAt  time.Time
+
+	Date time.Time `gorm:"type:date;primaryKey"`
 }
 
 func (s simpleAccountDataDaily) Equal(target simpleAccountData, dateNow time.Time) bool {
