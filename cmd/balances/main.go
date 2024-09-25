@@ -44,6 +44,13 @@ func main() {
 		log.Fatal().Err(err).Msg("failed to fetch db data")
 	}
 
+	dateNow := time.Now().UTC()
+
+	dbDailyData, err := fetchDailyDbData(db, dateNow)
+	if err != nil {
+		log.Fatal().Err(err).Msg("failed to fetch db daily data")
+	}
+
 	tx := db.Begin()
 	defer tx.Rollback()
 
@@ -59,11 +66,23 @@ func main() {
 	for _, account := range ffData {
 		dbAccount := dbData[account.ID]
 
-		if dbAccount.ID == 0 || !dbAccount.Balance.Equal(account.Balance) || dbAccount.CurrencyID != account.CurrencyID {
+		if !dbAccount.Equal(account) {
 			dbAccount = account
 			dbAccount.UpdatedAt = time.Now().UTC()
 
 			if err = tx.Clauses(clause.OnConflict{UpdateAll: true}).Save(&dbAccount).Error; err != nil {
+				log.Fatal().Err(err).Msg("failed to save account")
+			}
+		}
+
+		dbDailyAccount := dbDailyData[account.ID]
+
+		if !dbDailyAccount.Equal(account, dateNow) {
+			dbDailyAccount.simpleAccountData = account
+			dbDailyAccount.Date = dateNow
+			dbDailyAccount.UpdatedAt = time.Now().UTC()
+
+			if err = tx.Clauses(clause.OnConflict{UpdateAll: true}).Save(&dbDailyAccount).Error; err != nil {
 				log.Fatal().Err(err).Msg("failed to save account")
 			}
 		}
@@ -82,6 +101,22 @@ func fetchDbData(db *gorm.DB) (map[int]simpleAccountData, error) {
 	}
 
 	accountData := map[int]simpleAccountData{}
+	for _, record := range records {
+		accountData[record.ID] = record
+	}
+
+	return accountData, nil
+}
+
+func fetchDailyDbData(db *gorm.DB, targetTime time.Time) (map[int]simpleAccountDataDaily, error) {
+	var records []simpleAccountDataDaily
+
+	if err := db.Where("date = ?", targetTime.Format(time.DateOnly)).
+		Find(&records).Error; err != nil {
+		return nil, errors.Wrap(err, "failed to fetch daily records")
+	}
+
+	accountData := map[int]simpleAccountDataDaily{}
 	for _, record := range records {
 		accountData[record.ID] = record
 	}

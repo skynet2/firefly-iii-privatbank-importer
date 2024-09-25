@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     container: golang:1.22-alpine
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - run: apk update && apk add curl openssl git openssh-client build-base && mkdir -p /root/.ssh
       - run: wget -O /usr/bin/mockgen https://github.com/skynet2/mock/releases/latest/download/mockgen && chmod 777 /usr/bin/mockgen
       - run: make generate

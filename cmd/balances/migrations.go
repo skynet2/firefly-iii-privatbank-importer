@@ -29,5 +29,21 @@ func getMigrations() []*gormigrate.Migration {
 `).Error
 			},
 		},
+		{
+			ID: "2024_09_25_AddDailyStats",
+			Migrate: func(db *gorm.DB) error {
+				return db.Exec(`create table if not exists simple_account_data_importer_daily
+(
+    id          integer not null,
+    balance     decimal,
+    currency_id integer,
+    date date,
+    updated_at timestamp,
+    constraint simple_account_data_importer_daily_pl
+        primary key (id, date)
+);
+`).Error
+			},
+		},
 	}
 }
