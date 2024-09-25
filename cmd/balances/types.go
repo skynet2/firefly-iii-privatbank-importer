@@ -31,6 +31,51 @@ type simpleAccountData struct {
 	UpdatedAt  time.Time
 }
 
-func (s *simpleAccountData) TableName() string {
+func (s simpleAccountData) Equal(target simpleAccountData) bool {
+	if s.ID == 0 {
+		return false
+	}
+
+	if !s.Balance.Equal(target.Balance) {
+		return false
+	}
+
+	if s.CurrencyID != target.CurrencyID {
+		return false
+	}
+
+	return true
+}
+
+func (s simpleAccountData) TableName() string {
 	return "simple_account_data_importer"
+}
+
+type simpleAccountDataDaily struct {
+	simpleAccountData
+	Date time.Time
+}
+
+func (s simpleAccountDataDaily) Equal(target simpleAccountData, dateNow time.Time) bool {
+	if s.Date.Format(time.DateOnly) != dateNow.Format(time.DateOnly) {
+		return false
+	}
+
+	if s.ID == 0 {
+		return false
+	}
+
+	if !s.Balance.Equal(target.Balance) {
+		return false
+	}
+
+	if s.CurrencyID != target.CurrencyID {
+		return false
+	}
+
+	return true
+}
+
+func (s simpleAccountDataDaily) TableName() string {
+	return "simple_account_data_importer_daily"
 }
