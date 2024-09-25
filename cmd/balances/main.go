@@ -80,6 +80,7 @@ func main() {
 		if !dbDailyAccount.Equal(account, dateNow) {
 			dbDailyAccount.simpleAccountData = account
 			dbDailyAccount.Date = dateNow
+			dbDailyAccount.UpdatedAt = time.Now().UTC()
 
 			if err = tx.Clauses(clause.OnConflict{UpdateAll: true}).Save(&dbDailyAccount).Error; err != nil {
 				log.Fatal().Err(err).Msg("failed to save account")
