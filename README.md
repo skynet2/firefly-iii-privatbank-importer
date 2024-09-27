@@ -65,6 +65,9 @@ To use the Firefly III Importer, you need to set up a Telegram bot and connect i
 Forward Privat notifications to Importer group.
 
 ## Default Bot Commands
-### /dry - Perform a dry run. This command processes all pending messages without committing the transactions to Firefly III.
 ### /commit - Commit all pending transactions to Firefly III. This command processes and imports all pending transactions.
+### /stat - Display the current status of the importer. This command shows the number of pending transactions.
+### /dry - Perform a dry run. This command processes all pending messages without committing the transactions to Firefly III.
+### /errors - Display the current errors. This command shows the number of errors that occurred during the import process.
+### /duplicates - Display the current duplicates. This command shows the number of duplicate transactions that were detected.
 ### /clear - Clear all pending transactions. Use this command to remove any messages that you do not want to import.
