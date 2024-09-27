@@ -17,6 +17,38 @@ type Repo interface {
 	UpdateMessages(ctx context.Context, message []*database.Message) error
 }
 
+type Printer interface {
+	Dry(
+		ctx context.Context,
+		mappedTx []*firefly.MappedTransaction,
+		errArr []error,
+	) string
+
+	Commit(
+		ctx context.Context,
+		mappedTx []*firefly.MappedTransaction,
+		errArr []error,
+	) string
+
+	Stat(
+		_ context.Context,
+		mappedTx []*firefly.MappedTransaction,
+		errArr []error,
+	) string
+
+	Duplicates(
+		_ context.Context,
+		mappedTx []*firefly.MappedTransaction,
+		errArr []error,
+	) string
+
+	Errors(
+		_ context.Context,
+		mappedTx []*firefly.MappedTransaction,
+		errArr []error,
+	) string
+}
+
 type Parser interface {
 	ParseMessages(
 		ctx context.Context,

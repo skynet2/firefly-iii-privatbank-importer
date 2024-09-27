@@ -14,9 +14,46 @@ import (
 type Printer struct {
 }
 
+func NewPrinter() *Printer {
+	return &Printer{}
+}
+
+func (p *Printer) Commit(
+	ctx context.Context,
+	mappedTx []*firefly.MappedTransaction,
+	errArr []error,
+) string {
+	return p.Dry(ctx, mappedTx, errArr)
+}
+
+func (p *Printer) Dry(
+	ctx context.Context,
+	mappedTx []*firefly.MappedTransaction,
+	errArr []error,
+) string {
+	var sb strings.Builder
+
+	sb.WriteString(p.Stat(ctx, mappedTx, errArr))
+	sb.WriteString("\n\n")
+
+	for _, tx := range mappedTx {
+		if errors.Is(tx.Error, common.ErrDuplicate) {
+			continue
+		}
+		if errors.Is(tx.Error, common.ErrOperationNotSupported) {
+			continue
+		}
+
+		p.fancyPrintTx(tx, &sb)
+	}
+
+	return sb.String()
+}
+
 func (p *Printer) Duplicates(
 	_ context.Context,
 	mappedTx []*firefly.MappedTransaction,
+	_ []error,
 ) string {
 	var duplicates []*firefly.MappedTransaction
 
@@ -45,12 +82,21 @@ func (p *Printer) Duplicates(
 func (p *Printer) Errors(
 	_ context.Context,
 	mappedTx []*firefly.MappedTransaction,
+	errArr []error,
 ) string {
 	var errCount int
 	var sb strings.Builder
 
+	for _, err := range errArr {
+		sb.WriteString(fmt.Sprintf("Error: %s\n", err))
+	}
+
 	for _, tx := range mappedTx {
 		if tx.Error == nil {
+			continue
+		}
+
+		if errors.Is(tx.Error, common.ErrDuplicate) {
 			continue
 		}
 
@@ -76,21 +122,22 @@ func (p *Printer) Stat(
 	var okCount int
 
 	for _, tx := range mappedTx {
-		if tx.Error != nil {
-			if errors.Is(tx.Error, common.ErrDuplicate) {
-				duplicateCount += 1
-				continue
-			}
-
-			if errors.Is(tx.Error, common.ErrOperationNotSupported) {
-				notSupportedCount += 1
-				continue
-			}
-
-			errArr = append(errArr, tx.Error)
+		if tx.Error == nil {
+			okCount += 1
+			continue
 		}
 
-		okCount += 1
+		if errors.Is(tx.Error, common.ErrDuplicate) {
+			duplicateCount += 1
+			continue
+		}
+
+		if errors.Is(tx.Error, common.ErrOperationNotSupported) {
+			notSupportedCount += 1
+			continue
+		}
+
+		errArr = append(errArr, tx.Error)
 	}
 
 	var sb strings.Builder

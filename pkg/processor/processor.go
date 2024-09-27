@@ -14,6 +14,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/samber/lo"
 
+	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/common"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/database"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/firefly"
 	parser2 "github.com/skynet2/firefly-iii-privatbank-importer/pkg/parser"
@@ -35,6 +36,7 @@ type Config struct {
 	NotificationSvc  NotificationSvc
 	FireflySvc       Firefly
 	DuplicateCleaner DuplicateCleaner
+	Printer          Printer
 }
 
 func NewProcessor(
@@ -60,6 +62,12 @@ func (p *Processor) ProcessMessage(
 	switch trimmed[0] {
 	case "/dry":
 		return p.DryRun(ctx, message)
+	case "/stat":
+		return p.Stat(ctx, message)
+	case "/duplicates":
+		return p.Duplicates(ctx, message)
+	case "/errors":
+		return p.Errors(ctx, message)
 	case "/commit":
 		return p.Commit(ctx, message)
 	case "/clear":
@@ -144,11 +152,40 @@ func (p *Processor) DryRun(ctx context.Context, message Message) error {
 		return nil
 	}
 
-	if err = p.prettyPrint(ctx, mappedTx, errArr, message); err != nil {
+	return p.cfg.NotificationSvc.SendMessage(ctx, message.ChatID, p.cfg.Printer.Dry(ctx, mappedTx, errArr))
+}
+
+func (p *Processor) Stat(ctx context.Context, message Message) error {
+	mappedTx, errArr, err := p.ProcessLatestMessages(ctx, message.TransactionSource)
+	if err != nil {
 		p.SendErrorMessage(ctx, err, message)
+
+		return nil
 	}
 
-	return nil
+	return p.cfg.NotificationSvc.SendMessage(ctx, message.ChatID, p.cfg.Printer.Stat(ctx, mappedTx, errArr))
+}
+
+func (p *Processor) Errors(ctx context.Context, message Message) error {
+	mappedTx, errArr, err := p.ProcessLatestMessages(ctx, message.TransactionSource)
+	if err != nil {
+		p.SendErrorMessage(ctx, err, message)
+
+		return nil
+	}
+
+	return p.cfg.NotificationSvc.SendMessage(ctx, message.ChatID, p.cfg.Printer.Errors(ctx, mappedTx, errArr))
+}
+
+func (p *Processor) Duplicates(ctx context.Context, message Message) error {
+	mappedTx, errArr, err := p.ProcessLatestMessages(ctx, message.TransactionSource)
+	if err != nil {
+		p.SendErrorMessage(ctx, err, message)
+
+		return nil
+	}
+
+	return p.cfg.NotificationSvc.SendMessage(ctx, message.ChatID, p.cfg.Printer.Duplicates(ctx, mappedTx, errArr))
 }
 
 func (p *Processor) ProcessLatestMessages(
@@ -222,15 +259,18 @@ func (p *Processor) Commit(ctx context.Context, message Message) error {
 	var messagesToUpdate []*database.Message
 
 	for _, tx := range transactions {
-		if tx.DuplicateError != nil || tx.Original.ParsingError != nil { // do not commit duplicates, but mark them
+		if errors.Is(tx.Error, common.ErrDuplicate) { // do not commit duplicates, but mark them
 			tx.Original.OriginalMessage.IsProcessed = true
 			tx.Original.OriginalMessage.ProcessedAt = lo.ToPtr(time.Now().UTC())
 			messagesToUpdate = append(messagesToUpdate, tx.Original.OriginalMessage)
 			continue
 		}
 
-		txCopy := tx
+		if tx.Error != nil {
+			continue
+		}
 
+		txCopy := tx
 		pool.Submit(func() {
 			res := p.CommitTransaction(ctx, txCopy, message)
 			mut.Lock()
@@ -277,11 +317,7 @@ func (p *Processor) Commit(ctx context.Context, message Message) error {
 		updatedMessages[upd.Msg.MessageID] = struct{}{}
 	}
 
-	if err = p.prettyPrint(ctx, transactions, errArr, message); err != nil {
-		p.SendErrorMessage(ctx, err, message)
-	}
-
-	return nil
+	return p.cfg.NotificationSvc.SendMessage(ctx, message.ChatID, p.cfg.Printer.Commit(ctx, transactions, errArr))
 }
 
 func (p *Processor) CommitTransaction(
@@ -290,8 +326,7 @@ func (p *Processor) CommitTransaction(
 	_ Message,
 ) []*CommitResult {
 	if transaction.Original.OriginalMessage == nil {
-		transaction.FireflyMappingError = errors.Join(transaction.FireflyMappingError,
-			errors.Newf("original message is nil"))
+		transaction.Error = errors.Join(transaction.Error, errors.Newf("original message is nil"))
 
 		return nil
 	}
@@ -301,13 +336,12 @@ func (p *Processor) CommitTransaction(
 		transaction.Transaction,
 		transaction.Original.DeduplicationKey != "",
 	); err != nil {
-		transaction.FireflyMappingError = errors.Join(transaction.FireflyMappingError,
-			errors.Wrapf(err, "failed to commit transaction"))
+		transaction.Error = errors.Join(transaction.Error, errors.Wrapf(err, "failed to commit transaction"))
 	}
 
 	reaction := reactionCommitted
 
-	if transaction.FireflyMappingError != nil {
+	if transaction.Error != nil {
 		reaction = failedToCommit
 	} else {
 		transaction.IsCommitted = true

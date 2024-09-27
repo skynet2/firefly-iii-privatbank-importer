@@ -44,6 +44,7 @@ type Transaction struct {
 
 	OriginalTxType      string
 	OriginalNadawcaName string
+	ParsingError        error `json:"-"`
 }
 
 type TransactionType int32
