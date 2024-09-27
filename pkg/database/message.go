@@ -40,11 +40,11 @@ type Transaction struct {
 	DuplicateTransactions       []*Transaction
 
 	OriginalMessage  *Message `json:"-"`
-	ParsingError     error    `json:"-"`
 	DeduplicationKey string
 
 	OriginalTxType      string
 	OriginalNadawcaName string
+	ParsingError        error `json:"-"`
 }
 
 type TransactionType int32

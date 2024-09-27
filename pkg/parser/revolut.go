@@ -15,6 +15,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/shopspring/decimal"
 
+	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/common"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/database"
 )
 
@@ -144,7 +145,7 @@ func (m *Revolut) parseTransaction(
 	}
 
 	if sourceAmount.GreaterThan(decimal.Zero) {
-		return nil, errors.New("income operations are not supported. will skip")
+		return nil, errors.WithStack(common.ErrOperationNotSupported)
 	}
 
 	supportedStates := []string{

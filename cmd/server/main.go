@@ -15,6 +15,7 @@ import (
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/firefly"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/notifications"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/parser"
+	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/printer"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/processor"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/repo"
 )
@@ -67,6 +68,7 @@ func main() {
 		NotificationSvc:  tgNotifier,
 		FireflySvc:       fireflyClient,
 		DuplicateCleaner: dedup,
+		Printer:          printer.NewPrinter(),
 	}
 
 	for _, p := range []processor.Parser{

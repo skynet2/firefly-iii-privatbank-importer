@@ -7,6 +7,7 @@ import (
 
 	"github.com/cockroachdb/errors"
 
+	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/common"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/database"
 )
 
@@ -38,7 +39,7 @@ func (d *DuplicateCleaner) IsDuplicate(
 	}
 
 	if exists {
-		return errors.WithStack(DuplicateTransactionError)
+		return errors.WithStack(common.ErrDuplicate)
 	}
 
 	return nil

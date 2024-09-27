@@ -14,6 +14,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/samber/lo"
 
+	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/common"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/database"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/firefly"
 	parser2 "github.com/skynet2/firefly-iii-privatbank-importer/pkg/parser"
@@ -35,6 +36,7 @@ type Config struct {
 	NotificationSvc  NotificationSvc
 	FireflySvc       Firefly
 	DuplicateCleaner DuplicateCleaner
+	Printer          Printer
 }
 
 func NewProcessor(
@@ -60,6 +62,12 @@ func (p *Processor) ProcessMessage(
 	switch trimmed[0] {
 	case "/dry":
 		return p.DryRun(ctx, message)
+	case "/stat":
+		return p.Stat(ctx, message)
+	case "/duplicates":
+		return p.Duplicates(ctx, message)
+	case "/errors":
+		return p.Errors(ctx, message)
 	case "/commit":
 		return p.Commit(ctx, message)
 	case "/clear":
@@ -136,145 +144,6 @@ func (p *Processor) Clear(ctx context.Context, message Message) error {
 	return p.cfg.Repo.Clear(ctx, message.TransactionSource)
 }
 
-func (p *Processor) prettyPrint(
-	ctx context.Context,
-	mappedTx []*firefly.MappedTransaction,
-	errArr []error,
-	message Message,
-) error {
-	if len(mappedTx) == 0 && len(errArr) == 0 {
-		if err := p.cfg.NotificationSvc.SendMessage(ctx, message.ChatID, "No messages to process"); err != nil {
-			return err
-		}
-
-		return nil
-	}
-
-	var sb strings.Builder
-	withErrors := 0
-	var duplicates []*firefly.MappedTransaction
-	var totalProcessed int
-
-	for _, tx := range mappedTx {
-		if tx.DuplicateError != nil {
-			duplicates = append(duplicates, tx)
-			continue
-		}
-
-		totalProcessed += 1
-		withErrors += p.fancyPrintTx(tx, &sb)
-	}
-
-	if len(errArr) > 0 {
-		sb.WriteString("\n\nErrors:\n")
-		for _, err := range errArr {
-			sb.WriteString(fmt.Sprintf("%s\n", err))
-		}
-	}
-
-	sb.WriteString(fmt.Sprintf("\nTotal: %v", len(mappedTx)))
-	if withErrors > 0 {
-		sb.WriteString(fmt.Sprintf("\nOk: %v 🔥", len(mappedTx)-withErrors))
-		sb.WriteString(fmt.Sprintf("\nErrors: %v 🚒", withErrors))
-		sb.WriteString(fmt.Sprintf("\nDuplicates: %v ✨", len(duplicates)))
-	} else {
-		sb.WriteString(fmt.Sprintf("\nDuplicates: %v ✨", len(duplicates)))
-		sb.WriteString("\nAll Ok: ✅")
-	}
-
-	if len(duplicates) > 0 {
-		var duplicateSb strings.Builder
-		duplicateSb.WriteString("\n\nDuplicates:\n")
-		for _, tx := range duplicates {
-			p.fancyPrintTx(tx, &duplicateSb)
-		}
-
-		duplicateSb.WriteString(fmt.Sprintf("\nTotal: %v", len(mappedTx)))
-		duplicateSb.WriteString(fmt.Sprintf("\nDuplicates: %v ✨", len(duplicates)))
-
-		if totalProcessed == 0 {
-			duplicateSb.WriteString("\nAll transactions are duplicates: ✅")
-		}
-
-		if err := p.cfg.NotificationSvc.SendMessage(ctx, message.ChatID, duplicateSb.String()); err != nil {
-			return err
-		}
-	}
-
-	if totalProcessed > 0 {
-		if err := p.cfg.NotificationSvc.SendMessage(ctx, message.ChatID, sb.String()); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (p *Processor) fancyPrintTx(tx *firefly.MappedTransaction, sb *strings.Builder) int {
-	withErrors := 0
-
-	if tx.IsCommitted {
-		sb.WriteString("Committed: ✅\n")
-	}
-
-	if tx.FireflyMappingError != nil || tx.Original.ParsingError != nil {
-		sb.WriteString("Has Error: ❌\n")
-		withErrors += 1
-	}
-
-	if tx.DuplicateError != nil {
-		sb.WriteString("Duplicate: ✨\n")
-	}
-
-	sb.WriteString(fmt.Sprintf("Source: %v", tx.Original.TransactionSource))
-	sb.WriteString(fmt.Sprintf("\nDate: %s\n", tx.Original.Date.Format("2006-01-02 15:04")))
-
-	if !tx.Original.SourceAmount.IsZero() {
-		sb.WriteString(fmt.Sprintf("\nSource: %v%v", tx.Original.SourceAmount.StringFixed(2), tx.Original.SourceCurrency))
-	}
-	if tx.Original.SourceAccount != "" {
-		sb.WriteString(fmt.Sprintf("\nSource Account: %s", tx.Original.SourceAccount))
-	}
-	if tx.Transaction != nil && tx.Transaction.SourceName != "" {
-		sb.WriteString(fmt.Sprintf("\nSource [FF]: %s", tx.Transaction.SourceName))
-	}
-	sb.WriteString("\n")
-
-	if !tx.Original.DestinationAmount.IsZero() {
-		sb.WriteString(fmt.Sprintf("\nDestination: %v%v",
-			tx.Original.DestinationAmount.StringFixed(2), tx.Original.DestinationCurrency))
-	}
-	if tx.Original.DestinationAccount != "" {
-		sb.WriteString(fmt.Sprintf("\nDestination Account: %s", tx.Original.DestinationAccount))
-	}
-	if tx.Transaction != nil && tx.Transaction.DestinationName != "" {
-		sb.WriteString(fmt.Sprintf("\nDestination [FF]: %s", tx.Transaction.DestinationName))
-	}
-	sb.WriteString("\n")
-
-	sb.WriteString(fmt.Sprintf("\nType: %v", tx.Original.Type))
-	if tx.Transaction != nil {
-		sb.WriteString(fmt.Sprintf("\nType [FF]: %s", tx.Transaction.Type))
-	}
-	sb.WriteString("\n")
-
-	sb.WriteString(fmt.Sprintf("\nDescription: %s", tx.Original.Description))
-
-	if tx.Original.ParsingError != nil {
-		sb.WriteString(fmt.Sprintf("\nParsing ERROR: %s", tx.Original.ParsingError))
-	}
-	if tx.FireflyMappingError != nil {
-		sb.WriteString(fmt.Sprintf("\nFirefly ERROR: %s", tx.FireflyMappingError))
-	}
-	if tx.DuplicateError != nil {
-		sb.WriteString(fmt.Sprintf("\nDuplicate ERROR: %s", tx.DuplicateError))
-	}
-
-	sb.WriteString("\n====================\n")
-
-	return withErrors
-}
-
 func (p *Processor) DryRun(ctx context.Context, message Message) error {
 	mappedTx, errArr, err := p.ProcessLatestMessages(ctx, message.TransactionSource)
 	if err != nil {
@@ -283,11 +152,40 @@ func (p *Processor) DryRun(ctx context.Context, message Message) error {
 		return nil
 	}
 
-	if err = p.prettyPrint(ctx, mappedTx, errArr, message); err != nil {
+	return p.cfg.NotificationSvc.SendMessage(ctx, message.ChatID, p.cfg.Printer.Dry(ctx, mappedTx, errArr))
+}
+
+func (p *Processor) Stat(ctx context.Context, message Message) error {
+	mappedTx, errArr, err := p.ProcessLatestMessages(ctx, message.TransactionSource)
+	if err != nil {
 		p.SendErrorMessage(ctx, err, message)
+
+		return nil
 	}
 
-	return nil
+	return p.cfg.NotificationSvc.SendMessage(ctx, message.ChatID, p.cfg.Printer.Stat(ctx, mappedTx, errArr))
+}
+
+func (p *Processor) Errors(ctx context.Context, message Message) error {
+	mappedTx, errArr, err := p.ProcessLatestMessages(ctx, message.TransactionSource)
+	if err != nil {
+		p.SendErrorMessage(ctx, err, message)
+
+		return nil
+	}
+
+	return p.cfg.NotificationSvc.SendMessage(ctx, message.ChatID, p.cfg.Printer.Errors(ctx, mappedTx, errArr))
+}
+
+func (p *Processor) Duplicates(ctx context.Context, message Message) error {
+	mappedTx, errArr, err := p.ProcessLatestMessages(ctx, message.TransactionSource)
+	if err != nil {
+		p.SendErrorMessage(ctx, err, message)
+
+		return nil
+	}
+
+	return p.cfg.NotificationSvc.SendMessage(ctx, message.ChatID, p.cfg.Printer.Duplicates(ctx, mappedTx, errArr))
 }
 
 func (p *Processor) ProcessLatestMessages(
@@ -335,12 +233,12 @@ func (p *Processor) ProcessLatestMessages(
 	}
 
 	for _, tx := range mappedTransactions {
-		if tx.Original.ParsingError != nil {
+		if tx.Error != nil {
 			continue
 		}
 
 		if err = p.cfg.DuplicateCleaner.IsDuplicate(ctx, tx.Original.DeduplicationKey, transactionSource); err != nil {
-			tx.DuplicateError = err
+			tx.Error = errors.Join(tx.Error, err)
 		}
 	}
 
@@ -361,15 +259,18 @@ func (p *Processor) Commit(ctx context.Context, message Message) error {
 	var messagesToUpdate []*database.Message
 
 	for _, tx := range transactions {
-		if tx.DuplicateError != nil || tx.Original.ParsingError != nil { // do not commit duplicates, but mark them
+		if errors.Is(tx.Error, common.ErrDuplicate) { // do not commit duplicates, but mark them
 			tx.Original.OriginalMessage.IsProcessed = true
 			tx.Original.OriginalMessage.ProcessedAt = lo.ToPtr(time.Now().UTC())
 			messagesToUpdate = append(messagesToUpdate, tx.Original.OriginalMessage)
 			continue
 		}
 
-		txCopy := tx
+		if tx.Error != nil {
+			continue
+		}
 
+		txCopy := tx
 		pool.Submit(func() {
 			res := p.CommitTransaction(ctx, txCopy, message)
 			mut.Lock()
@@ -416,11 +317,7 @@ func (p *Processor) Commit(ctx context.Context, message Message) error {
 		updatedMessages[upd.Msg.MessageID] = struct{}{}
 	}
 
-	if err = p.prettyPrint(ctx, transactions, errArr, message); err != nil {
-		p.SendErrorMessage(ctx, err, message)
-	}
-
-	return nil
+	return p.cfg.NotificationSvc.SendMessage(ctx, message.ChatID, p.cfg.Printer.Commit(ctx, transactions, errArr))
 }
 
 func (p *Processor) CommitTransaction(
@@ -429,8 +326,7 @@ func (p *Processor) CommitTransaction(
 	_ Message,
 ) []*CommitResult {
 	if transaction.Original.OriginalMessage == nil {
-		transaction.FireflyMappingError = errors.Join(transaction.FireflyMappingError,
-			errors.Newf("original message is nil"))
+		transaction.Error = errors.Join(transaction.Error, errors.Newf("original message is nil"))
 
 		return nil
 	}
@@ -440,13 +336,12 @@ func (p *Processor) CommitTransaction(
 		transaction.Transaction,
 		transaction.Original.DeduplicationKey != "",
 	); err != nil {
-		transaction.FireflyMappingError = errors.Join(transaction.FireflyMappingError,
-			errors.Wrapf(err, "failed to commit transaction"))
+		transaction.Error = errors.Join(transaction.Error, errors.Wrapf(err, "failed to commit transaction"))
 	}
 
 	reaction := reactionCommitted
 
-	if transaction.FireflyMappingError != nil {
+	if transaction.Error != nil {
 		reaction = failedToCommit
 	} else {
 		transaction.IsCommitted = true

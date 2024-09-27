@@ -8,6 +8,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/common"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/database"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/duplicatecleaner"
 )
@@ -48,7 +49,7 @@ func TestIsDuplicate_KeyExists(t *testing.T) {
 
 	err := duplicateCleaner.IsDuplicate(context.Background(), "test-key", database.Zen)
 	assert.Error(t, err)
-	assert.Error(t, duplicatecleaner.DuplicateTransactionError, err)
+	assert.Error(t, common.ErrDuplicate, err)
 }
 
 func TestIsDuplicate_KeyDoesNotExist(t *testing.T) {

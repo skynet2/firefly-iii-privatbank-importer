@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
+	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/common"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/database"
 )
 
@@ -108,6 +109,11 @@ func (m *Mono) ParseMessages(
 			continue
 		}
 
+		if len(linesData) == 0 {
+			tx.ParsingError = errors.New("empty file")
+			continue
+		}
+
 		additionalTx, parsingErr := m.parseTransaction(tx, linesData[0])
 		if parsingErr != nil {
 			tx.ParsingError = parsingErr
@@ -153,7 +159,7 @@ func (m *Mono) parseTransaction(
 		}
 
 		if sourceAmount.GreaterThan(decimal.Zero) {
-			return nil, errors.New("income operations are not supported. will skip")
+			return nil, errors.WithStack(common.ErrOperationNotSupported)
 		}
 
 		destAmount, err := decimal.NewFromString(data[4])
