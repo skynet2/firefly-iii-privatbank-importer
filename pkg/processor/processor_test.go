@@ -14,6 +14,79 @@ import (
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/processor"
 )
 
+func TestAddNewMessage(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		notifySvc := NewMockNotificationSvc(gomock.NewController(t))
+		printerSvc := NewMockPrinter(gomock.NewController(t))
+		repoSvc := NewMockRepo(gomock.NewController(t))
+		prParser := NewMockParser(gomock.NewController(t))
+		ffSvc := NewMockFirefly(gomock.NewController(t))
+
+		pr := processor.NewProcessor(&processor.Config{
+			NotificationSvc: notifySvc,
+			Printer:         printerSvc,
+			Repo:            repoSvc,
+			FireflySvc:      ffSvc,
+			Parsers: map[database.TransactionSource]processor.Parser{
+				database.PrivatBank: prParser,
+			},
+		})
+
+		repoSvc.EXPECT().AddMessage(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, messages []database.Message) error {
+				assert.Len(t, messages, 1)
+				return nil
+			})
+
+		notifySvc.EXPECT().React(gomock.Any(), int64(1234), int64(0), "🤝").
+			Return(nil)
+
+		assert.NoError(t, pr.ProcessMessage(context.Background(), processor.Message{
+			ChatID:            1234,
+			TransactionSource: database.PrivatBank,
+			Content:           "new-input-message",
+		}))
+	})
+
+	t.Run("file", func(t *testing.T) {
+		notifySvc := NewMockNotificationSvc(gomock.NewController(t))
+		printerSvc := NewMockPrinter(gomock.NewController(t))
+		repoSvc := NewMockRepo(gomock.NewController(t))
+		prParser := NewMockParser(gomock.NewController(t))
+		ffSvc := NewMockFirefly(gomock.NewController(t))
+
+		pr := processor.NewProcessor(&processor.Config{
+			NotificationSvc: notifySvc,
+			Printer:         printerSvc,
+			Repo:            repoSvc,
+			FireflySvc:      ffSvc,
+			Parsers: map[database.TransactionSource]processor.Parser{
+				database.PrivatBank: prParser,
+			},
+		})
+
+		repoSvc.EXPECT().AddMessage(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, messages []database.Message) error {
+				assert.Len(t, messages, 1)
+				return nil
+			})
+
+		notifySvc.EXPECT().React(gomock.Any(), int64(1234), int64(0), "🤝").
+			Return(nil)
+		notifySvc.EXPECT().GetFile(gomock.Any(), "file-id").
+			Return([]byte("file-content"), nil)
+
+		prParser.EXPECT().SplitExcel(gomock.Any(), []byte("file-content")).
+			Return([][]byte{[]byte("file-content")}, nil)
+
+		assert.NoError(t, pr.ProcessMessage(context.Background(), processor.Message{
+			ChatID:            1234,
+			TransactionSource: database.PrivatBank,
+			FileID:            "file-id",
+		}))
+	})
+}
+
 func TestDuplicateMessage(t *testing.T) {
 	t.Run("one duplicate tx", func(t *testing.T) {
 		repo := NewMockRepo(gomock.NewController(t))
@@ -311,6 +384,282 @@ func TestProcessorCommit(t *testing.T) {
 		assert.NoError(t, srv.Commit(context.TODO(), processor.Message{
 			TransactionSource: database.PrivatBank,
 			ChatID:            111,
+		}))
+	})
+}
+
+func TestDryRun(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		notifySvc := NewMockNotificationSvc(gomock.NewController(t))
+		printerSvc := NewMockPrinter(gomock.NewController(t))
+		repoSvc := NewMockRepo(gomock.NewController(t))
+		prParser := NewMockParser(gomock.NewController(t))
+		ffSvc := NewMockFirefly(gomock.NewController(t))
+
+		pr := processor.NewProcessor(&processor.Config{
+			NotificationSvc: notifySvc,
+			Printer:         printerSvc,
+			Repo:            repoSvc,
+			FireflySvc:      ffSvc,
+			Parsers: map[database.TransactionSource]processor.Parser{
+				database.PrivatBank: prParser,
+			},
+		})
+
+		prParser.EXPECT().ParseMessages(gomock.Any(), gomock.Any()).
+			Return([]*database.Transaction{}, nil)
+		ffSvc.EXPECT().MapTransactions(gomock.Any(), gomock.Any()).
+			Return([]*firefly.MappedTransaction{}, nil)
+
+		repoSvc.EXPECT().GetLatestMessages(gomock.Any(), database.PrivatBank).
+			Return([]*database.Message{}, nil)
+
+		printerSvc.EXPECT().Dry(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return("some-message")
+
+		notifySvc.EXPECT().SendMessage(gomock.Any(), int64(1234), "some-message").
+			Return(nil)
+
+		assert.NoError(t, pr.ProcessMessage(context.Background(), processor.Message{
+			ChatID:            1234,
+			TransactionSource: database.PrivatBank,
+			Content:           "/dry",
+		}))
+	})
+
+	t.Run("fail", func(t *testing.T) {
+		notifySvc := NewMockNotificationSvc(gomock.NewController(t))
+		printerSvc := NewMockPrinter(gomock.NewController(t))
+		repoSvc := NewMockRepo(gomock.NewController(t))
+
+		pr := processor.NewProcessor(&processor.Config{
+			NotificationSvc: notifySvc,
+			Printer:         printerSvc,
+			Repo:            repoSvc,
+			Parsers:         map[database.TransactionSource]processor.Parser{},
+		})
+
+		repoSvc.EXPECT().GetLatestMessages(gomock.Any(), database.PrivatBank).
+			Return([]*database.Message{}, nil)
+
+		notifySvc.EXPECT().SendMessage(gomock.Any(), int64(1234), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, i int64, s string) error {
+				assert.Contains(t, s, "parser for source privatbank not found")
+
+				return nil
+			})
+
+		assert.NoError(t, pr.ProcessMessage(context.Background(), processor.Message{
+			ChatID:            1234,
+			TransactionSource: database.PrivatBank,
+			Content:           "/dry",
+		}))
+	})
+}
+
+func TestStat(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		notifySvc := NewMockNotificationSvc(gomock.NewController(t))
+		printerSvc := NewMockPrinter(gomock.NewController(t))
+		repoSvc := NewMockRepo(gomock.NewController(t))
+		prParser := NewMockParser(gomock.NewController(t))
+		ffSvc := NewMockFirefly(gomock.NewController(t))
+
+		pr := processor.NewProcessor(&processor.Config{
+			NotificationSvc: notifySvc,
+			Printer:         printerSvc,
+			Repo:            repoSvc,
+			FireflySvc:      ffSvc,
+			Parsers: map[database.TransactionSource]processor.Parser{
+				database.PrivatBank: prParser,
+			},
+		})
+
+		prParser.EXPECT().ParseMessages(gomock.Any(), gomock.Any()).
+			Return([]*database.Transaction{}, nil)
+		ffSvc.EXPECT().MapTransactions(gomock.Any(), gomock.Any()).
+			Return([]*firefly.MappedTransaction{}, nil)
+
+		repoSvc.EXPECT().GetLatestMessages(gomock.Any(), database.PrivatBank).
+			Return([]*database.Message{}, nil)
+
+		printerSvc.EXPECT().Stat(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return("some-message")
+
+		notifySvc.EXPECT().SendMessage(gomock.Any(), int64(1234), "some-message").
+			Return(nil)
+
+		assert.NoError(t, pr.ProcessMessage(context.Background(), processor.Message{
+			ChatID:            1234,
+			TransactionSource: database.PrivatBank,
+			Content:           "/stat",
+		}))
+	})
+
+	t.Run("fail", func(t *testing.T) {
+		notifySvc := NewMockNotificationSvc(gomock.NewController(t))
+		printerSvc := NewMockPrinter(gomock.NewController(t))
+		repoSvc := NewMockRepo(gomock.NewController(t))
+
+		pr := processor.NewProcessor(&processor.Config{
+			NotificationSvc: notifySvc,
+			Printer:         printerSvc,
+			Repo:            repoSvc,
+			Parsers:         map[database.TransactionSource]processor.Parser{},
+		})
+
+		repoSvc.EXPECT().GetLatestMessages(gomock.Any(), database.PrivatBank).
+			Return([]*database.Message{}, nil)
+
+		notifySvc.EXPECT().SendMessage(gomock.Any(), int64(1234), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, i int64, s string) error {
+				assert.Contains(t, s, "parser for source privatbank not found")
+
+				return nil
+			})
+
+		assert.NoError(t, pr.ProcessMessage(context.Background(), processor.Message{
+			ChatID:            1234,
+			TransactionSource: database.PrivatBank,
+			Content:           "/stat",
+		}))
+	})
+}
+
+func TestErrors(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		notifySvc := NewMockNotificationSvc(gomock.NewController(t))
+		printerSvc := NewMockPrinter(gomock.NewController(t))
+		repoSvc := NewMockRepo(gomock.NewController(t))
+		prParser := NewMockParser(gomock.NewController(t))
+		ffSvc := NewMockFirefly(gomock.NewController(t))
+
+		pr := processor.NewProcessor(&processor.Config{
+			NotificationSvc: notifySvc,
+			Printer:         printerSvc,
+			Repo:            repoSvc,
+			FireflySvc:      ffSvc,
+			Parsers: map[database.TransactionSource]processor.Parser{
+				database.PrivatBank: prParser,
+			},
+		})
+
+		prParser.EXPECT().ParseMessages(gomock.Any(), gomock.Any()).
+			Return([]*database.Transaction{}, nil)
+		ffSvc.EXPECT().MapTransactions(gomock.Any(), gomock.Any()).
+			Return([]*firefly.MappedTransaction{}, nil)
+
+		repoSvc.EXPECT().GetLatestMessages(gomock.Any(), database.PrivatBank).
+			Return([]*database.Message{}, nil)
+
+		printerSvc.EXPECT().Errors(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return("some-message")
+
+		notifySvc.EXPECT().SendMessage(gomock.Any(), int64(1234), "some-message").
+			Return(nil)
+
+		assert.NoError(t, pr.ProcessMessage(context.Background(), processor.Message{
+			ChatID:            1234,
+			TransactionSource: database.PrivatBank,
+			Content:           "/errors",
+		}))
+	})
+
+	t.Run("fail", func(t *testing.T) {
+		notifySvc := NewMockNotificationSvc(gomock.NewController(t))
+		printerSvc := NewMockPrinter(gomock.NewController(t))
+		repoSvc := NewMockRepo(gomock.NewController(t))
+
+		pr := processor.NewProcessor(&processor.Config{
+			NotificationSvc: notifySvc,
+			Printer:         printerSvc,
+			Repo:            repoSvc,
+			Parsers:         map[database.TransactionSource]processor.Parser{},
+		})
+
+		repoSvc.EXPECT().GetLatestMessages(gomock.Any(), database.PrivatBank).
+			Return([]*database.Message{}, nil)
+
+		notifySvc.EXPECT().SendMessage(gomock.Any(), int64(1234), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, i int64, s string) error {
+				assert.Contains(t, s, "parser for source privatbank not found")
+
+				return nil
+			})
+
+		assert.NoError(t, pr.ProcessMessage(context.Background(), processor.Message{
+			ChatID:            1234,
+			TransactionSource: database.PrivatBank,
+			Content:           "/errors",
+		}))
+	})
+}
+
+func TestDuplicates(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		notifySvc := NewMockNotificationSvc(gomock.NewController(t))
+		printerSvc := NewMockPrinter(gomock.NewController(t))
+		repoSvc := NewMockRepo(gomock.NewController(t))
+		prParser := NewMockParser(gomock.NewController(t))
+		ffSvc := NewMockFirefly(gomock.NewController(t))
+
+		pr := processor.NewProcessor(&processor.Config{
+			NotificationSvc: notifySvc,
+			Printer:         printerSvc,
+			Repo:            repoSvc,
+			FireflySvc:      ffSvc,
+			Parsers: map[database.TransactionSource]processor.Parser{
+				database.PrivatBank: prParser,
+			},
+		})
+
+		prParser.EXPECT().ParseMessages(gomock.Any(), gomock.Any()).
+			Return([]*database.Transaction{}, nil)
+		ffSvc.EXPECT().MapTransactions(gomock.Any(), gomock.Any()).
+			Return([]*firefly.MappedTransaction{}, nil)
+
+		repoSvc.EXPECT().GetLatestMessages(gomock.Any(), database.PrivatBank).
+			Return([]*database.Message{}, nil)
+
+		printerSvc.EXPECT().Duplicates(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return("some-message")
+
+		notifySvc.EXPECT().SendMessage(gomock.Any(), int64(1234), "some-message").
+			Return(nil)
+
+		assert.NoError(t, pr.ProcessMessage(context.Background(), processor.Message{
+			ChatID:            1234,
+			TransactionSource: database.PrivatBank,
+			Content:           "/duplicates",
+		}))
+	})
+
+	t.Run("fail", func(t *testing.T) {
+		notifySvc := NewMockNotificationSvc(gomock.NewController(t))
+		printerSvc := NewMockPrinter(gomock.NewController(t))
+		repoSvc := NewMockRepo(gomock.NewController(t))
+
+		pr := processor.NewProcessor(&processor.Config{
+			NotificationSvc: notifySvc,
+			Printer:         printerSvc,
+			Repo:            repoSvc,
+			Parsers:         map[database.TransactionSource]processor.Parser{},
+		})
+
+		repoSvc.EXPECT().GetLatestMessages(gomock.Any(), database.PrivatBank).
+			Return([]*database.Message{}, nil)
+
+		notifySvc.EXPECT().SendMessage(gomock.Any(), int64(1234), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, i int64, s string) error {
+				assert.Contains(t, s, "parser for source privatbank not found")
+
+				return nil
+			})
+
+		assert.NoError(t, pr.ProcessMessage(context.Background(), processor.Message{
+			ChatID:            1234,
+			TransactionSource: database.PrivatBank,
+			Content:           "/duplicates",
 		}))
 	})
 }
