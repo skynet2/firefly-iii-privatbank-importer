@@ -44,7 +44,7 @@ func (p *Printer) Dry(
 			continue
 		}
 
-		p.fancyPrintTx(tx, &sb)
+		p.FancyPrintTx(tx, &sb)
 	}
 
 	return sb.String()
@@ -69,7 +69,7 @@ func (p *Printer) Duplicates(
 
 	var sb strings.Builder
 	for _, tx := range duplicates {
-		p.fancyPrintTx(tx, &sb)
+		p.FancyPrintTx(tx, &sb)
 	}
 
 	if len(duplicates) == len(mappedTx) {
@@ -100,13 +100,13 @@ func (p *Printer) Errors(
 			continue
 		}
 
-		p.fancyPrintTx(tx, &sb)
+		p.FancyPrintTx(tx, &sb)
 
 		errCount += 1
 	}
 
 	if errCount == 0 {
-		sb.WriteString("No errors found")
+		sb.WriteString("No errors.")
 	}
 
 	return sb.String()
@@ -157,7 +157,7 @@ func (p *Printer) Stat(
 	return sb.String()
 }
 
-func (p *Printer) fancyPrintTx(tx *firefly.MappedTransaction, sb *strings.Builder) {
+func (p *Printer) FancyPrintTx(tx *firefly.MappedTransaction, sb *strings.Builder) {
 	if tx.IsCommitted {
 		sb.WriteString("Committed: ✅\n")
 	}

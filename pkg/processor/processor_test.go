@@ -220,11 +220,16 @@ func TestProcessorCommit(t *testing.T) {
 
 		dedup := NewMockDuplicateCleaner(gomock.NewController(t))
 
+		mockPrinter := NewMockPrinter(gomock.NewController(t))
+		mockPrinter.EXPECT().Commit(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return("All ok")
+
 		srv := processor.NewProcessor(&processor.Config{
 			Repo:             repo,
 			DuplicateCleaner: dedup,
 			NotificationSvc:  notificationSvc,
 			FireflySvc:       fireflySvc,
+			Printer:          mockPrinter,
 			Parsers: map[database.TransactionSource]processor.Parser{
 				database.PrivatBank: parser,
 			},
