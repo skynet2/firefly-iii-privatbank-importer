@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/cockroachdb/errors"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/common"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/database"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/firefly"
 	parser2 "github.com/skynet2/firefly-iii-privatbank-importer/pkg/parser"
@@ -24,6 +24,10 @@ func TestDuplicateMessage(t *testing.T) {
 
 		dedup := NewMockDuplicateCleaner(gomock.NewController(t))
 
+		mockPrint := NewMockPrinter(gomock.NewController(t))
+		mockPrint.EXPECT().Commit(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return("All Ok")
+
 		srv := processor.NewProcessor(&processor.Config{
 			Repo:             repo,
 			DuplicateCleaner: dedup,
@@ -32,10 +36,11 @@ func TestDuplicateMessage(t *testing.T) {
 			Parsers: map[database.TransactionSource]processor.Parser{
 				database.PrivatBank: parser,
 			},
+			Printer: mockPrint,
 		})
 
 		dedup.EXPECT().IsDuplicate(gomock.Any(), "111", database.PrivatBank).
-			Return(errors.New("is duplicate"))
+			Return(common.ErrDuplicate)
 		dedup.EXPECT().IsDuplicate(gomock.Any(), "1234", database.PrivatBank).
 			Return(nil)
 
@@ -108,14 +113,7 @@ func TestDuplicateMessage(t *testing.T) {
 
 		notificationSvc.EXPECT().SendMessage(gomock.Any(), int64(111), gomock.Any()).
 			DoAndReturn(func(ctx context.Context, i int64, s string) error {
-				assert.Contains(t, s, "Duplicates: 1")
-				return nil
-			})
-
-		notificationSvc.EXPECT().SendMessage(gomock.Any(), int64(111), gomock.Any()).
-			DoAndReturn(func(ctx context.Context, i int64, s string) error {
 				assert.Contains(t, s, "All Ok")
-				assert.Contains(t, s, "Duplicates: 1")
 				return nil
 			})
 
@@ -134,20 +132,25 @@ func TestDuplicateMessage(t *testing.T) {
 
 		dedup := NewMockDuplicateCleaner(gomock.NewController(t))
 
+		mockPrinter := NewMockPrinter(gomock.NewController(t))
+		mockPrinter.EXPECT().Commit(gomock.Any(), gomock.Any(), gomock.Any()).
+			Return("All ok")
+
 		srv := processor.NewProcessor(&processor.Config{
 			Repo:             repo,
 			DuplicateCleaner: dedup,
 			NotificationSvc:  notificationSvc,
 			FireflySvc:       fireflySvc,
+			Printer:          mockPrinter,
 			Parsers: map[database.TransactionSource]processor.Parser{
 				database.PrivatBank: parser,
 			},
 		})
 
 		dedup.EXPECT().IsDuplicate(gomock.Any(), "111", database.PrivatBank).
-			Return(errors.New("is duplicate"))
+			Return(common.ErrDuplicate)
 		dedup.EXPECT().IsDuplicate(gomock.Any(), "1234", database.PrivatBank).
-			Return(errors.New("is duplicate"))
+			Return(common.ErrDuplicate)
 
 		messages := []*database.Message{
 			{
@@ -194,12 +197,9 @@ func TestDuplicateMessage(t *testing.T) {
 		repo.EXPECT().GetLatestMessages(gomock.Any(), database.PrivatBank).
 			Return(messages, nil)
 
-		//notificationSvc.EXPECT().React(gomock.Any(), int64(1234), int64(4321), "🍾").
-		//	Return(nil)
-
 		notificationSvc.EXPECT().SendMessage(gomock.Any(), int64(111), gomock.Any()).
 			DoAndReturn(func(ctx context.Context, i int64, s string) error {
-				assert.Contains(t, s, "Duplicates: 2")
+				assert.Contains(t, s, "All ok")
 				return nil
 			})
 
