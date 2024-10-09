@@ -288,10 +288,14 @@ func (p *Processor) Commit(ctx context.Context, message Message) error {
 			messagesToUpdate = append(messagesToUpdate, tx.Msg)
 		}
 
-		if tx.Tx != nil && tx.Tx.Original.DeduplicationKey != "" {
-			finalErr = errors.Join(finalErr,
-				p.cfg.DuplicateCleaner.AddDuplicateKey(ctx, tx.Tx.Original.DeduplicationKey, tx.Msg.TransactionSource),
-			)
+		if tx.Tx != nil && tx.Tx.Original != nil {
+			extractedDuplicationKeys := p.ExtractDuplicationKeys(tx.Tx.Original)
+
+			for _, key := range extractedDuplicationKeys {
+				finalErr = errors.Join(finalErr,
+					p.cfg.DuplicateCleaner.AddDuplicateKey(ctx, key, tx.Msg.TransactionSource),
+				)
+			}
 		}
 	}
 
@@ -318,6 +322,27 @@ func (p *Processor) Commit(ctx context.Context, message Message) error {
 	}
 
 	return p.cfg.NotificationSvc.SendMessage(ctx, message.ChatID, p.cfg.Printer.Commit(ctx, transactions, errArr))
+}
+
+func (p *Processor) ExtractDuplicationKeys(tx *database.Transaction) []string {
+	var keys []string
+
+	if tx.DeduplicationKey != "" {
+		keys = append(keys, tx.DeduplicationKey)
+	}
+
+	for _, dup := range tx.DuplicateTransactions {
+		if dupIDs := p.ExtractDuplicationKeys(dup); len(dupIDs) > 0 {
+			for _, k := range dupIDs {
+				if !lo.Contains(keys, k) {
+					keys = append(keys, dupIDs...)
+				}
+			}
+		}
+
+	}
+
+	return keys
 }
 
 func (p *Processor) CommitTransaction(
