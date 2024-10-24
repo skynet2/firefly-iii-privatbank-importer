@@ -57,30 +57,32 @@ func (p *Processor) ProcessMessage(
 	}
 
 	lower := strings.ToLower(message.Content)
+	var err error
 
 	trimmed := strings.Split(lower, "@")
 	switch trimmed[0] {
 	case "/dry":
-		return p.DryRun(ctx, message)
+		err = p.DryRun(ctx, message)
 	case "/stat":
-		return p.Stat(ctx, message)
+		err = p.Stat(ctx, message)
 	case "/duplicates":
-		return p.Duplicates(ctx, message)
+		err = p.Duplicates(ctx, message)
 	case "/errors":
-		return p.Errors(ctx, message)
+		err = p.Errors(ctx, message)
 	case "/commit":
-		return p.Commit(ctx, message)
+		err = p.Commit(ctx, message)
 	case "/clear":
-		return p.Clear(ctx, message)
+		err = p.Clear(ctx, message)
 	default:
-		if err := p.AddMessage(ctx, message); err != nil {
-			p.SendErrorMessage(ctx, err, message)
+		err = p.AddMessage(ctx, message)
+	}
 
-			return err
-		}
-
+	if err != nil {
+		p.SendErrorMessage(ctx, err, message)
 		return nil
 	}
+
+	return err
 }
 
 func (p *Processor) AddMessage(

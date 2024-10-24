@@ -40,7 +40,7 @@ func (h *Handler) ProcessWebhook(
 
 	source := h.chatMap[fmt.Sprint(webhook.Message.Chat.Id)]
 
-	return h.processor.ProcessMessage(ctx, processor.Message{
+	_ = h.processor.ProcessMessage(ctx, processor.Message{
 		ID:                strconv.FormatInt(webhook.UpdateId, 10),
 		Date:              date,
 		OriginalDate:      originalDate,
@@ -51,6 +51,8 @@ func (h *Handler) ProcessWebhook(
 		FileID:            webhook.Message.Document.FileID,
 		TransactionSource: source,
 	})
+
+	return nil
 }
 
 func (h *Handler) ServeHTTP(
