@@ -98,7 +98,7 @@ func (m *Revolut) ParseMessages(
 
 		tx := &database.Transaction{
 			ID:                uuid.NewString(),
-			Raw:               string(raw.Data),
+			Raw:               string(rawCsv),
 			OriginalMessage:   raw.Message,
 			TransactionSource: m.Type(),
 		}
