@@ -221,7 +221,7 @@ func (p *Paribas) ParseMessages(
 				tx.SourceAccount = destinationAccount
 
 				skipExtraChecks = true
-			case "Przelew wychodzący", "Przelew na telefon":
+			case "Przelew wychodzący", "Przelew na telefon", "Spłata karty":
 				tx.Type = database.TransactionTypeRemoteTransfer // can be changed in merge
 				tx.DestinationAccount = destinationAccount
 				tx.DestinationAmount = amountParsed.Abs()
@@ -267,8 +267,6 @@ func (p *Paribas) stripAccountPrefix(account string) string {
 	return account
 }
 
-//var currencyExchangeRegex = regexp.MustCompile(`(\w{3}) (\w{3}) ([^ ]+) (.*)$`)
-
 func (p *Paribas) merge(
 	_ context.Context,
 	transactions []*database.Transaction,
@@ -282,6 +280,8 @@ func (p *Paribas) merge(
 		}
 
 		isDuplicate := false
+		isCreditPayment := tx.OriginalTxType == "Spłata karty"
+
 		for _, f := range final {
 			if tx.OriginalTxType == "Prowizje i opłaty" {
 				continue
@@ -291,7 +291,7 @@ func (p *Paribas) merge(
 				continue
 			}
 
-			if f.Description != tx.Description {
+			if !isCreditPayment && f.Description != tx.Description {
 				continue
 			}
 
