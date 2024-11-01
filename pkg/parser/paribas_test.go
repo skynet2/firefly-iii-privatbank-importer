@@ -29,6 +29,9 @@ var income []byte
 //go:embed testdata/transfer_to_private_acc.xlsx
 var transferToPrivateAccount []byte
 
+//go:embed testdata/credit_card.xlsx
+var creditCardPayment []byte
+
 //go:embed testdata/currency_exchange.xlsx
 var currencyExchange []byte
 
@@ -393,6 +396,32 @@ func TestParibasTransferToPrivateAccount(t *testing.T) {
 	assert.Equal(t, "00:00", resp[0].DateFromMessage)
 	assert.Equal(t, "2024-02-01 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
 	assert.Equal(t, "Przelew środków", resp[0].Description)
+}
+
+func TestParibasCreditCardRepayment(t *testing.T) {
+	srv := parser.NewParibas()
+
+	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+		{
+			Data: creditCardPayment,
+		},
+	})
+
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Len(t, resp, 1)
+
+	assert.Equal(t, database.TransactionTypeInternalTransfer, resp[0].Type)
+	assert.Equal(t, "PLN", resp[0].SourceCurrency)
+	assert.Equal(t, "1.00", resp[0].SourceAmount.StringFixed(2))
+	assert.Equal(t, "PLN", resp[0].DestinationCurrency)
+	assert.Equal(t, "1.00", resp[0].DestinationAmount.StringFixed(2))
+
+	assert.Equal(t, "22222222222222222222222222", resp[0].SourceAccount)
+	assert.Equal(t, "11111111111111111111111111", resp[0].DestinationAccount)
+	assert.Equal(t, "00:00", resp[0].DateFromMessage)
+	assert.Equal(t, "2024-10-20 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
+	assert.Equal(t, "Spłata karty", resp[0].Description)
 }
 
 func TestParibasCurrencyExchange(t *testing.T) {
