@@ -138,6 +138,7 @@ func (m *Revolut) merge(
 	transactions []*database.Transaction,
 ) []*database.Transaction {
 	var finalTransactions []*database.Transaction
+	var duplicates []*database.Transaction
 
 	for _, tx := range transactions {
 		if tx.Type != database.TransactionTypeInternalTransfer {
@@ -145,12 +146,16 @@ func (m *Revolut) merge(
 			continue
 		}
 
-		if len(tx.DuplicateTransactions) > 0 {
+		if lo.Contains(duplicates, tx) {
 			continue
 		}
 
 		for _, t := range transactions {
 			if t == tx || t.Type != database.TransactionTypeInternalTransfer {
+				continue
+			}
+
+			if lo.Contains(duplicates, t) {
 				continue
 			}
 
@@ -160,7 +165,6 @@ func (m *Revolut) merge(
 
 			if t.Description == tx.Description && t.Date.Equal(tx.Date) {
 				tx.DuplicateTransactions = append(tx.DuplicateTransactions, t)
-				t.DuplicateTransactions = append(t.DuplicateTransactions, tx)
 
 				if tx.SourceAmount.LessThan(decimal.Zero) {
 					tx.DestinationAmount = t.DestinationAmount

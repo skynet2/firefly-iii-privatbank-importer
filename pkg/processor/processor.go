@@ -327,6 +327,10 @@ func (p *Processor) Commit(ctx context.Context, message Message) error {
 }
 
 func (p *Processor) ExtractDuplicationKeys(tx *database.Transaction) []string {
+	if tx == nil {
+		return nil
+	}
+
 	var keys []string
 
 	if tx.DeduplicationKey != "" {
@@ -334,6 +338,14 @@ func (p *Processor) ExtractDuplicationKeys(tx *database.Transaction) []string {
 	}
 
 	for _, dup := range tx.DuplicateTransactions {
+		if dup == nil {
+			continue
+		}
+
+		if dup == tx {
+			continue
+		}
+
 		if dupIDs := p.ExtractDuplicationKeys(dup); len(dupIDs) > 0 {
 			for _, k := range dupIDs {
 				if !lo.Contains(keys, k) {
