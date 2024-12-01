@@ -82,7 +82,7 @@ func (m *Revolut) SplitCsv(
 }
 
 func (m *Revolut) ParseMessages(
-	_ context.Context,
+	ctx context.Context,
 	rawArr []*Record,
 ) ([]*database.Transaction, error) {
 	var transactions []*database.Transaction
@@ -119,7 +119,66 @@ func (m *Revolut) ParseMessages(
 		transactions = append(transactions, additionalTx...)
 	}
 
-	return transactions, nil
+	return m.adjustAmount(m.merge(ctx, transactions)), nil
+}
+
+func (m *Revolut) adjustAmount(
+	transactions []*database.Transaction,
+) []*database.Transaction {
+	for _, tx := range transactions {
+		tx.SourceAmount = tx.SourceAmount.Abs()
+		tx.DestinationAmount = tx.DestinationAmount.Abs()
+	}
+
+	return transactions
+}
+
+func (m *Revolut) merge(
+	_ context.Context,
+	transactions []*database.Transaction,
+) []*database.Transaction {
+	var finalTransactions []*database.Transaction
+
+	for _, tx := range transactions {
+		if tx.Type != database.TransactionTypeInternalTransfer {
+			finalTransactions = append(finalTransactions, tx)
+			continue
+		}
+
+		if len(tx.DuplicateTransactions) > 0 {
+			continue
+		}
+
+		for _, t := range transactions {
+			if t == tx || t.Type != database.TransactionTypeInternalTransfer {
+				continue
+			}
+
+			if lo.Contains(finalTransactions, t) {
+				continue
+			}
+
+			if t.Description == tx.Description && t.Date.Equal(tx.Date) {
+				tx.DuplicateTransactions = append(tx.DuplicateTransactions, t)
+				t.DuplicateTransactions = append(t.DuplicateTransactions, tx)
+
+				if tx.SourceAmount.LessThan(decimal.Zero) {
+					tx.DestinationAmount = t.DestinationAmount
+					tx.DestinationCurrency = t.DestinationCurrency
+					tx.DestinationAccount = t.DestinationAccount
+				} else {
+					tx.SourceAmount = t.SourceAmount
+					tx.SourceCurrency = t.SourceCurrency
+					tx.SourceAccount = t.SourceAccount
+				}
+
+				finalTransactions = append(finalTransactions, tx)
+				break
+			}
+		}
+	}
+
+	return finalTransactions
 }
 
 func (m *Revolut) parseTransaction(
@@ -134,18 +193,16 @@ func (m *Revolut) parseTransaction(
 		return !unicode.IsGraphic(r)
 	})
 
+	operationType := data[0]
+
 	operationTime, timeErr := time.Parse("2006-01-02 15:04:05", invisibleChars)
 	if timeErr != nil {
-		return nil, errors.Wrapf(timeErr, "failed to parse operation time %s", data[0])
+		return nil, errors.Wrapf(timeErr, "failed to parse operation time %s", data[2])
 	}
 
 	sourceAmount, err := decimal.NewFromString(data[5])
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to parse source amount %s", data[5])
-	}
-
-	if sourceAmount.GreaterThan(decimal.Zero) {
-		return nil, errors.WithStack(common.ErrOperationNotSupported)
 	}
 
 	supportedStates := []string{
@@ -162,19 +219,41 @@ func (m *Revolut) parseTransaction(
 	tx.Type = database.TransactionTypeExpense
 	tx.Date = operationTime
 
-	tx.SourceAmount = sourceAmount.Abs()
+	tx.SourceAmount = sourceAmount
 	tx.SourceCurrency = data[7]
 	tx.SourceAccount = m.AccountName(tx.SourceCurrency)
 
-	tx.Description = fmt.Sprintf("%s.%s", data[0], data[4])
+	tx.Description = fmt.Sprintf("%s.%s", operationType, data[4])
 
 	tx.DeduplicationKey = strings.Join([]string{
-		data[0],
+		operationType,
 		data[2],
 		data[4],
 		data[5],
 		data[7],
 	}, "_")
+
+	if operationType == "EXCHANGE" {
+		tx.Type = database.TransactionTypeInternalTransfer
+
+		if sourceAmount.GreaterThan(decimal.Zero) { // it destination
+			tx.DestinationCurrency = tx.SourceCurrency
+			tx.DestinationAmount = sourceAmount.Abs()
+			tx.DestinationAccount = m.AccountName(tx.DestinationCurrency)
+
+			tx.SourceCurrency = ""
+			tx.SourceAmount = decimal.Zero
+			tx.SourceAccount = ""
+		}
+
+		return nil, nil
+	}
+
+	tx.SourceAmount = sourceAmount.Abs()
+
+	if sourceAmount.GreaterThan(decimal.Zero) {
+		return nil, errors.WithStack(common.ErrOperationNotSupported)
+	}
 
 	return nil, nil
 }

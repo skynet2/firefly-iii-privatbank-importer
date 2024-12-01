@@ -40,7 +40,8 @@ The Firefly III Importer is a tool designed to automate the process of importing
 - Supported Transaction Types: 
   - [ ] Income
   - [x] Withdrawal
-  - [ ] Transfer
+  - [x] Transfer
+  - [x] Exchange
 - [x] Duplicate cleaner
 
 ### Server deployment
