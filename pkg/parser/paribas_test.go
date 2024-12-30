@@ -291,6 +291,7 @@ func TestParibasBlokadaSrodkow(t *testing.T) {
 	assert.Equal(t, "00:00", resp[0].DateFromMessage)
 	assert.Equal(t, "2024-02-08 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
 	assert.Equal(t, "PAYPAL  XTB S 111 PL 111______111 500,00 USD ", resp[0].Description)
+	assert.ErrorContains(t, resp[0].ParsingError, "transaction is still pending. will skip from firefly for now")
 }
 func TestMultiCurrencyPayment(t *testing.T) {
 	srv := parser.NewParibas()
