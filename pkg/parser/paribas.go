@@ -172,6 +172,8 @@ func (p *Paribas) ParseMessages(
 			account = p.stripAccountPrefix(account)
 			destinationAccount := p.stripAccountPrefix(toLines(senderOrReceiver)[0])
 
+			executedAt := row.Cells[1].String()
+
 			switch transactionType {
 			case "Transakcja kartą", "Transakcja BLIK", "Prowizje i opłaty",
 				"Blokada środków", "Operacja gotówkowa", "Inne operacje":
@@ -231,6 +233,11 @@ func (p *Paribas) ParseMessages(
 				tx.SourceAccount = account
 			default:
 				tx.ParsingError = errors.Newf("unknown transaction type: %s", transactionType)
+				continue
+			}
+
+			if transactionType == "Blokada środków" && executedAt == "" {
+				tx.ParsingError = errors.New("transaction is still pending. will skip from firefly for now")
 				continue
 			}
 
