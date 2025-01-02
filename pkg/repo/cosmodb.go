@@ -132,7 +132,7 @@ func (c *Cosmo) AddMessage(ctx context.Context, messages []database.Message) err
 
 	pool.StopWait()
 
-	return nil
+	return finalErr
 }
 
 func (c *Cosmo) getMessageContainer() (*azcosmos.ContainerClient, error) {
