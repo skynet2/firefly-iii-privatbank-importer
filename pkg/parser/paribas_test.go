@@ -511,5 +511,5 @@ func TestSplitExcel(t *testing.T) {
 	resp, err := srv.SplitExcel(context.TODO(), betweenAccounts)
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
-	assert.Len(t, resp, 2)
+	assert.Len(t, resp, 1)
 }

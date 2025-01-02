@@ -1,8 +1,8 @@
 package parser
 
 import (
-	"bytes"
 	"context"
+	"sort"
 	"strings"
 	"time"
 
@@ -30,37 +30,7 @@ func (p *Paribas) SplitExcel(
 	_ context.Context,
 	data []byte,
 ) ([][]byte, error) {
-	fileData, err := xlsx.OpenBinary(data)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(fileData.Sheets) == 0 {
-		return nil, errors.New("no sheets found")
-	}
-
-	sheet := fileData.Sheets[0]
-
-	var resultFiles [][]byte
-
-	for i := 0; i < len(sheet.Rows)-1; i++ { // -1 because of header
-		localFile, localErr := xlsx.OpenBinary(data) // this is shit approach, but i can live with that for now
-		if localErr != nil {
-			return nil, localErr
-		}
-
-		sh := localFile.Sheets[0]
-		sh.Rows = []*xlsx.Row{sh.Row(0), sh.Row(i + 1)}
-
-		var buf bytes.Buffer
-		if err = localFile.Write(&buf); err != nil {
-			return nil, err
-		}
-
-		resultFiles = append(resultFiles, buf.Bytes())
-	}
-
-	return resultFiles, nil
+	return [][]byte{data}, nil
 }
 
 func (p *Paribas) ExtractFromCell(cells []*xlsx.Cell) string {
@@ -257,6 +227,10 @@ func (p *Paribas) ParseMessages(
 		}
 	}
 
+	sort.Slice(transactions, func(i, j int) bool {
+		return transactions[i].Date.Before(transactions[j].Date)
+	})
+
 	merged, err := p.merge(ctx, transactions)
 	if err != nil {
 		return nil, err
@@ -287,7 +261,7 @@ func (p *Paribas) merge(
 		}
 
 		isDuplicate := false
-		isCreditPayment := tx.OriginalTxType == "Spłata karty"
+		isCreditPayment := tx.OriginalTxType == "Spłata karty" || tx.Description == "Spłata karty"
 
 		for _, f := range final {
 			if tx.OriginalTxType == "Prowizje i opłaty" {
