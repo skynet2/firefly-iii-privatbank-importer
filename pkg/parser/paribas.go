@@ -261,7 +261,7 @@ func (p *Paribas) merge(
 		}
 
 		isDuplicate := false
-		isCreditPayment := tx.OriginalTxType == "Spłata karty" || tx.Description == "Spłata karty"
+		isCreditPayment := tx.OriginalTxType == "Spłata karty"
 
 		for _, f := range final {
 			if tx.OriginalTxType == "Prowizje i opłaty" {
