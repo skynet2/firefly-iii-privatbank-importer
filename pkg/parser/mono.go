@@ -114,6 +114,8 @@ func (m *Mono) ParseMessages(
 			continue
 		}
 
+		tx.Raw = strings.Join(linesData[0], ",")
+
 		additionalTx, parsingErr := m.parseTransaction(tx, linesData[0])
 		if parsingErr != nil {
 			tx.ParsingError = parsingErr
