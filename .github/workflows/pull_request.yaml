@@ -7,7 +7,7 @@ on:
 jobs:
   lint:
     runs-on: ubuntu-latest
-    container: golang:1.22-alpine
+    container: golang:1.23-alpine
     env:
       ENVIRONMENT: ci
     steps:
@@ -19,7 +19,7 @@ jobs:
           args: --timeout=5m --tests=false ./...
   test:
     runs-on: ubuntu-latest
-    container: golang:1.22-alpine
+    container: golang:1.23-alpine
     steps:
       - uses: actions/checkout@v4
       - run: apk update && apk add curl openssl git openssh-client build-base && mkdir -p /root/.ssh

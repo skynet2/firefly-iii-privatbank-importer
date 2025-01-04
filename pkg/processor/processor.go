@@ -234,17 +234,61 @@ func (p *Processor) ProcessLatestMessages(
 		return nil, nil, err
 	}
 
-	for _, tx := range mappedTransactions {
+	if err = p.checkDuplicates(ctx, mappedTransactions, transactionSource); err != nil {
+		return nil, nil, err
+	}
+
+	return mappedTransactions, parseErrorsArr, nil
+}
+
+func (p *Processor) checkDuplicates(
+	ctx context.Context,
+	mapped []*firefly.MappedTransaction,
+	txSource database.TransactionSource,
+) error {
+	var keys []string
+
+	for _, tx := range mapped {
 		if tx.Error != nil {
 			continue
 		}
 
-		if err = p.cfg.DuplicateCleaner.IsDuplicate(ctx, tx.Original.DeduplicationKey, transactionSource); err != nil {
-			tx.Error = errors.Join(tx.Error, err)
+		txKeys := p.ExtractDuplicationKeys(tx.Original)
+
+		if len(txKeys) == 0 {
+			continue
+		}
+
+		keys = append(keys, txKeys...)
+	}
+
+	keys = lo.Uniq(keys)
+	if len(keys) == 0 {
+		return nil
+	}
+
+	duplicates, err := p.cfg.DuplicateCleaner.GetDuplicates(ctx, keys, txSource)
+	if err != nil {
+		return err
+	}
+
+	if duplicates == nil {
+		duplicates = map[string]struct{}{}
+	}
+
+	for _, tx := range mapped {
+		if tx.Error != nil {
+			continue
+		}
+
+		for _, key := range p.ExtractDuplicationKeys(tx.Original) {
+			if _, ok := duplicates[key]; ok {
+				tx.Error = errors.Join(tx.Error, common.ErrDuplicate)
+			}
 		}
 	}
 
-	return mappedTransactions, parseErrorsArr, nil
+	return nil
 }
 
 func (p *Processor) Commit(ctx context.Context, message Message) error {
@@ -254,7 +298,7 @@ func (p *Processor) Commit(ctx context.Context, message Message) error {
 		return err
 	}
 
-	pool := workerpool.New(5)
+	pool := workerpool.New(3)
 	var commitResults []*CommitResult
 	var mut sync.Mutex
 
@@ -333,8 +377,10 @@ func (p *Processor) ExtractDuplicationKeys(tx *database.Transaction) []string {
 
 	var keys []string
 
-	if tx.DeduplicationKey != "" {
-		keys = append(keys, tx.DeduplicationKey)
+	for _, key := range tx.DeduplicationKeys {
+		if key != "" {
+			keys = append(keys, key)
+		}
 	}
 
 	for _, dup := range tx.DuplicateTransactions {
@@ -373,7 +419,7 @@ func (p *Processor) CommitTransaction(
 	if _, err := p.cfg.FireflySvc.CreateTransactions(
 		ctx,
 		transaction.Transaction,
-		transaction.Original.DeduplicationKey != "",
+		len(transaction.Original.DeduplicationKeys) > 0,
 	); err != nil {
 		transaction.Error = errors.Join(transaction.Error, errors.Wrapf(err, "failed to commit transaction"))
 	}

@@ -93,11 +93,11 @@ type NotificationSvc interface {
 }
 
 type DuplicateCleaner interface {
-	IsDuplicate(
+	GetDuplicates(
 		ctx context.Context,
-		key string,
+		keys []string,
 		txSource database.TransactionSource,
-	) error
+	) (map[string]struct{}, error)
 
 	AddDuplicateKey(
 		ctx context.Context,

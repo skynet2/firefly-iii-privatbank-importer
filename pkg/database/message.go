@@ -39,8 +39,8 @@ type Transaction struct {
 	InternalTransferDirectionTo bool
 	DuplicateTransactions       []*Transaction
 
-	OriginalMessage  *Message `json:"-"`
-	DeduplicationKey string
+	OriginalMessage   *Message `json:"-"`
+	DeduplicationKeys []string
 
 	OriginalTxType      string
 	OriginalNadawcaName string

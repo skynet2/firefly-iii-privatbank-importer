@@ -7,7 +7,6 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/common"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/database"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/firefly"
 	parser2 "github.com/skynet2/firefly-iii-privatbank-importer/pkg/parser"
@@ -112,10 +111,10 @@ func TestDuplicateMessage(t *testing.T) {
 			Printer: mockPrint,
 		})
 
-		dedup.EXPECT().IsDuplicate(gomock.Any(), "111", database.PrivatBank).
-			Return(common.ErrDuplicate)
-		dedup.EXPECT().IsDuplicate(gomock.Any(), "1234", database.PrivatBank).
-			Return(nil)
+		dedup.EXPECT().GetDuplicates(gomock.Any(), []string{"1234", "111"}, database.PrivatBank).
+			Return(map[string]struct{}{
+				"111": {},
+			}, nil)
 
 		dedup.EXPECT().AddDuplicateKey(gomock.Any(), "1234", database.PrivatBank).
 			Return(nil)
@@ -135,12 +134,12 @@ func TestDuplicateMessage(t *testing.T) {
 		resultTxs := []*database.Transaction{
 			{
 				OriginalMessage:   messages[0],
-				DeduplicationKey:  "1234",
+				DeduplicationKeys: []string{"1234"},
 				TransactionSource: database.PrivatBank,
 			},
 			{
 				OriginalMessage:   messages[1],
-				DeduplicationKey:  "111",
+				DeduplicationKeys: []string{"111"},
 				TransactionSource: database.PrivatBank,
 			},
 		}
@@ -220,10 +219,11 @@ func TestDuplicateMessage(t *testing.T) {
 			},
 		})
 
-		dedup.EXPECT().IsDuplicate(gomock.Any(), "111", database.PrivatBank).
-			Return(common.ErrDuplicate)
-		dedup.EXPECT().IsDuplicate(gomock.Any(), "1234", database.PrivatBank).
-			Return(common.ErrDuplicate)
+		dedup.EXPECT().GetDuplicates(gomock.Any(), []string{"1234", "111"}, database.PrivatBank).
+			Return(map[string]struct{}{
+				"111":  {},
+				"1234": {},
+			}, nil)
 
 		messages := []*database.Message{
 			{
@@ -237,12 +237,12 @@ func TestDuplicateMessage(t *testing.T) {
 		}
 		resultTxs := []*database.Transaction{
 			{
-				OriginalMessage:  messages[0],
-				DeduplicationKey: "1234",
+				OriginalMessage:   messages[0],
+				DeduplicationKeys: []string{"1234"},
 			},
 			{
-				OriginalMessage:  messages[1],
-				DeduplicationKey: "111",
+				OriginalMessage:   messages[1],
+				DeduplicationKeys: []string{"111"},
 			},
 		}
 
@@ -307,10 +307,9 @@ func TestProcessorCommit(t *testing.T) {
 				database.PrivatBank: parser,
 			},
 		})
-		dedup.EXPECT().IsDuplicate(gomock.Any(), "1234", database.PrivatBank).
-			Return(nil)
-		dedup.EXPECT().IsDuplicate(gomock.Any(), "", database.PrivatBank).
-			Return(nil)
+
+		dedup.EXPECT().GetDuplicates(gomock.Any(), []string{"1234"}, database.PrivatBank).
+			Return(map[string]struct{}{}, nil)
 
 		dedup.EXPECT().AddDuplicateKey(gomock.Any(), "1234", database.PrivatBank).
 			Return(nil)
@@ -329,8 +328,8 @@ func TestProcessorCommit(t *testing.T) {
 		}
 		resultTxs := []*database.Transaction{
 			{
-				OriginalMessage:  messages[0],
-				DeduplicationKey: "1234",
+				OriginalMessage:   messages[0],
+				DeduplicationKeys: []string{"1234"},
 			},
 			{
 				OriginalMessage: messages[1],

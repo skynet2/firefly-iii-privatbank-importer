@@ -8,7 +8,6 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/common"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/database"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/duplicatecleaner"
 )
@@ -20,8 +19,9 @@ func TestIsDuplicate_KeyIsEmpty(t *testing.T) {
 	mockRepo := NewMockRepo(ctrl)
 	duplicateCleaner := duplicatecleaner.NewDuplicateCleaner(mockRepo)
 
-	err := duplicateCleaner.IsDuplicate(context.Background(), "", database.Zen)
+	duplicates, err := duplicateCleaner.GetDuplicates(context.Background(), []string{""}, database.Zen)
 	assert.NoError(t, err)
+	assert.Empty(t, duplicates)
 }
 
 func TestIsDuplicate_RepoReturnsError(t *testing.T) {
@@ -31,9 +31,9 @@ func TestIsDuplicate_RepoReturnsError(t *testing.T) {
 	mockRepo := NewMockRepo(ctrl)
 	duplicateCleaner := duplicatecleaner.NewDuplicateCleaner(mockRepo)
 
-	mockRepo.EXPECT().IsDuplicateKeyExists(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, errors.New("repo error"))
+	mockRepo.EXPECT().GetDuplicates(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, errors.New("repo error"))
 
-	err := duplicateCleaner.IsDuplicate(context.Background(), "test-key", database.Zen)
+	_, err := duplicateCleaner.GetDuplicates(context.Background(), []string{"test-key"}, database.Zen)
 	assert.Error(t, err)
 	assert.Equal(t, "repo error", err.Error())
 }
@@ -45,11 +45,15 @@ func TestIsDuplicate_KeyExists(t *testing.T) {
 	mockRepo := NewMockRepo(ctrl)
 	duplicateCleaner := duplicatecleaner.NewDuplicateCleaner(mockRepo)
 
-	mockRepo.EXPECT().IsDuplicateKeyExists(gomock.Any(), gomock.Any(), gomock.Any()).Return(true, nil)
+	mockRepo.EXPECT().GetDuplicates(gomock.Any(), gomock.Any(), gomock.Any()).Return([]string{
+		"test-key",
+	}, nil)
 
-	err := duplicateCleaner.IsDuplicate(context.Background(), "test-key", database.Zen)
-	assert.Error(t, err)
-	assert.Error(t, common.ErrDuplicate, err)
+	duplicates, err := duplicateCleaner.GetDuplicates(context.Background(), []string{"test-key"}, database.Zen)
+
+	assert.NoError(t, err)
+	assert.Len(t, duplicates, 1)
+	assert.Contains(t, duplicates, "test-key")
 }
 
 func TestIsDuplicate_KeyDoesNotExist(t *testing.T) {
@@ -59,10 +63,12 @@ func TestIsDuplicate_KeyDoesNotExist(t *testing.T) {
 	mockRepo := NewMockRepo(ctrl)
 	duplicateCleaner := duplicatecleaner.NewDuplicateCleaner(mockRepo)
 
-	mockRepo.EXPECT().IsDuplicateKeyExists(gomock.Any(), gomock.Any(), gomock.Any()).Return(false, nil)
+	mockRepo.EXPECT().GetDuplicates(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil, nil)
 
-	err := duplicateCleaner.IsDuplicate(context.Background(), "test-key", database.Zen)
+	results, err := duplicateCleaner.GetDuplicates(context.Background(), []string{"test-key"}, database.Zen)
 	assert.NoError(t, err)
+	assert.Empty(t, results)
+	assert.NotNil(t, results)
 }
 
 func TestAddDuplicateKey_KeyIsEmpty(t *testing.T) {

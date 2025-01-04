@@ -229,13 +229,15 @@ func (m *Revolut) parseTransaction(
 
 	tx.Description = fmt.Sprintf("%s.%s", operationType, data[4])
 
-	tx.DeduplicationKey = strings.Join([]string{
-		operationType,
-		data[2],
-		data[4],
-		data[5],
-		data[7],
-	}, "_")
+	tx.DeduplicationKeys = []string{
+		strings.Join([]string{
+			operationType,
+			data[2],
+			data[4],
+			data[5],
+			data[7],
+		}, "_"),
+	}
 
 	if operationType == "EXCHANGE" {
 		tx.Type = database.TransactionTypeInternalTransfer
