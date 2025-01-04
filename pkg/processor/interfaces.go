@@ -104,4 +104,5 @@ type DuplicateCleaner interface {
 		key string,
 		txSource database.TransactionSource,
 	) error
+	HashKey(string) string
 }

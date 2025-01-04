@@ -7,13 +7,13 @@ package repo_test
 //		panic(err)
 //	}
 //
-//	local, err := repo.NewCosmo(client, "test")
+//	local, err := repo.NewCosmo(client, "firefly-importer")
 //	assert.NoError(t, err)
 //
 //	key := hash(time.Now().UTC().Format(time.RFC3339Nano))
 //
 //	ok, err := local.GetDuplicates(context.TODO(), []string{
-//		"d3664f14e04723c64a4116d2a7710235f7c3ac1348e62747b085772a92e32f96c63acdbd078c35f3e217fabb1fc140281e35fb628aa135ff367b8e8fdaef5bea",
+//		hash("12323"),
 //		"b",
 //	}, database.Paribas)
 //	assert.NoError(t, err)

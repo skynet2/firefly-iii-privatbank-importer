@@ -282,7 +282,9 @@ func (p *Processor) checkDuplicates(
 		}
 
 		for _, key := range p.ExtractDuplicationKeys(tx.Original) {
-			if _, ok := duplicates[key]; ok {
+			hashed := p.cfg.DuplicateCleaner.HashKey(key)
+
+			if _, ok := duplicates[hashed]; ok {
 				tx.Error = errors.Join(tx.Error, common.ErrDuplicate)
 			}
 		}

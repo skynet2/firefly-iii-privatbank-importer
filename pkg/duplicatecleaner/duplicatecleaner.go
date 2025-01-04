@@ -31,7 +31,7 @@ func (d *DuplicateCleaner) GetDuplicates(
 			continue
 		}
 
-		hashedKeys = append(hashedKeys, d.hash(key))
+		hashedKeys = append(hashedKeys, d.HashKey(key))
 	}
 
 	final := map[string]struct{}{}
@@ -61,12 +61,12 @@ func (d *DuplicateCleaner) AddDuplicateKey(
 		return nil
 	}
 
-	key = d.hash(key)
+	key = d.HashKey(key)
 
 	return d.repo.AddDuplicateKey(ctx, key, txSource)
 }
 
-func (d *DuplicateCleaner) hash(bv string) string {
+func (d *DuplicateCleaner) HashKey(bv string) string {
 	shaImpl := sha512.New()
 	shaImpl.Write([]byte(bv))
 
