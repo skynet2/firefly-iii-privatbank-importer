@@ -119,6 +119,12 @@ func TestDuplicateMessage(t *testing.T) {
 		dedup.EXPECT().AddDuplicateKey(gomock.Any(), "1234", database.PrivatBank).
 			Return(nil)
 
+		dedup.EXPECT().HashKey("1234").
+			Return("1234")
+
+		dedup.EXPECT().HashKey("111").
+			Return("111")
+
 		messages := []*database.Message{
 			{
 				ChatID:            1234,
@@ -225,6 +231,12 @@ func TestDuplicateMessage(t *testing.T) {
 				"1234": {},
 			}, nil)
 
+		dedup.EXPECT().HashKey("1234").
+			Return("1234")
+
+		dedup.EXPECT().HashKey("111").
+			Return("111")
+
 		messages := []*database.Message{
 			{
 				ChatID:    1234,
@@ -307,6 +319,9 @@ func TestProcessorCommit(t *testing.T) {
 				database.PrivatBank: parser,
 			},
 		})
+
+		dedup.EXPECT().HashKey("1234").
+			Return("1234")
 
 		dedup.EXPECT().GetDuplicates(gomock.Any(), []string{"1234"}, database.PrivatBank).
 			Return(map[string]struct{}{}, nil)
