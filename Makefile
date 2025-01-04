@@ -5,7 +5,7 @@ build:
 .PHONY: azure-deploy
 azure-deploy: build
 	@cd cmd/server/.azure && cp -a . ../dist/
-
+	@cd cmd/server/dist && func azure functionapp publish $(FF_IMPORTER_AZURE_FUNCTION)
 
 .PHONY: generate
 generate:

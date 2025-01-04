@@ -1,4 +1,4 @@
-FROM golang:1.22-alpine as build
+FROM golang:1.23-alpine as build
 ADD . /src
 WORKDIR /src/cmd/balances
 RUN GOOS=linux GOARCH=amd64 go build -ldflags "-s -w" -o /bin/balances

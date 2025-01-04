@@ -13,7 +13,7 @@ jobs:
         run: echo "version=$(date '+%Y.%m.%d.%H%M%S').${{ github.run_number }}" >> "$GITHUB_OUTPUT"
   build:
     runs-on: ubuntu-latest
-    container: golang:1.22-alpine
+    container: golang:1.23-alpine
     steps:
       - uses: actions/checkout@v4
       - run: apk update && apk add --update curl openssl git openssh-client build-base

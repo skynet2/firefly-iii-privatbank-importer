@@ -33,7 +33,7 @@ func (p *Paribas) SplitExcel(
 	return [][]byte{data}, nil
 }
 
-func (p *Paribas) ExtractFromCell(cells []*xlsx.Cell) string {
+func (p *Paribas) extractFromCellV1(cells []*xlsx.Cell) string {
 	var values []string
 
 	for i, c := range cells {
@@ -84,16 +84,20 @@ func (p *Paribas) ParseMessages(
 				OriginalMessage:             raw.Message,
 				OriginalTxType:              "",
 			}
-			transactions = append(transactions, tx)
 
 			row := sheet.Rows[i]
 
 			if len(row.Cells) < 6 {
-				tx.ParsingError = errors.Newf("expected at least 6 cells, got %d", len(row.Cells))
 				continue
 			}
 
-			tx.DeduplicationKey = p.ExtractFromCell(row.Cells)
+			if zeroVal := row.Cells[0].String(); strings.TrimSpace(zeroVal) == "" {
+				continue // looks like empty row, skip
+			}
+
+			transactions = append(transactions, tx)
+
+			tx.DeduplicationKeys = append(tx.DeduplicationKeys, p.extractFromCellV1(row.Cells))
 			date, cellErr := row.Cells[0].GetTime(false)
 			if cellErr != nil {
 				tx.ParsingError = errors.Join(cellErr, errors.Newf("can not parse date: %s", row.Cells[0].String()))
@@ -205,6 +209,22 @@ func (p *Paribas) ParseMessages(
 				tx.ParsingError = errors.Newf("unknown transaction type: %s", transactionType)
 				continue
 			}
+
+			tx.DeduplicationKeys = append(tx.DeduplicationKeys,
+				strings.Join([]string{
+					tx.SourceCurrency,
+					tx.DestinationCurrency,
+					tx.SourceAccount,
+					tx.DestinationAccount,
+					tx.Date.Format("2006-01-02"),
+					tx.SourceAmount.String(),
+					tx.DestinationAmount.String(),
+					tx.Description,
+					tx.OriginalNadawcaName,
+					tx.OriginalTxType,
+					transactionType,
+				}, "$$"),
+			)
 
 			if transactionType == "Blokada środków" && executedAt == "" {
 				tx.ParsingError = errors.New("transaction is still pending. will skip from firefly for now")

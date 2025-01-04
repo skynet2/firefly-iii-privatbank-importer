@@ -1,12 +1,13 @@
 module github.com/skynet2/firefly-iii-privatbank-importer
 
-go 1.22
+go 1.23
 
-toolchain go1.22.4
+toolchain go1.23.4
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.9.1
 	github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos v0.3.6
+	github.com/cenkalti/backoff/v5 v5.0.0
 	github.com/cockroachdb/errors v1.11.3
 	github.com/davecgh/go-spew v1.1.1
 	github.com/gammazero/workerpool v1.1.3

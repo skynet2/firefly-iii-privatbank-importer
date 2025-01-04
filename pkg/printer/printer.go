@@ -203,6 +203,7 @@ func (p *Printer) FancyPrintTx(tx *firefly.MappedTransaction, sb *strings.Builde
 	sb.WriteString("\n")
 
 	sb.WriteString(fmt.Sprintf("\nDescription: %s", tx.Original.Description))
+	//sb.WriteString(fmt.Sprintf("\nDuplication Key: %s", strings.Join(tx.Original.DeduplicationKeys, "")))
 
 	if tx.Error != nil {
 		sb.WriteString(fmt.Sprintf("\nERROR: %s", tx.Error))

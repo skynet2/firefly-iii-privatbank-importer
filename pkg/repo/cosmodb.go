@@ -7,6 +7,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/data/azcosmos"
+	"github.com/cenkalti/backoff/v5"
 	"github.com/cockroachdb/errors"
 	"github.com/gammazero/workerpool"
 
@@ -16,7 +17,7 @@ import (
 const (
 	messagesContainer  = "messages"
 	duplicateContainer = "duplicates"
-	defaultPoolSize    = 50
+	defaultPoolSize    = 10
 )
 
 type Cosmo struct {
@@ -93,6 +94,30 @@ func (c *Cosmo) ignoreDuplicateErr(err error) error {
 	return err
 }
 
+func (c *Cosmo) getRetryParams() []backoff.RetryOption {
+	return []backoff.RetryOption{
+		backoff.WithMaxTries(10),
+		backoff.WithMaxElapsedTime(10 * time.Second),
+		backoff.WithBackOff(backoff.NewExponentialBackOff()),
+	}
+}
+
+func (c *Cosmo) getMessageContainer() (*azcosmos.ContainerClient, error) {
+	if err := c.setupContainers(); err != nil {
+		return nil, err
+	}
+
+	return c.cl.NewContainer(messagesContainer)
+}
+
+func (c *Cosmo) getDuplicateContainer() (*azcosmos.ContainerClient, error) {
+	if err := c.setupContainers(); err != nil {
+		return nil, err
+	}
+
+	return c.cl.NewContainer(duplicateContainer)
+}
+
 func (c *Cosmo) AddMessage(ctx context.Context, messages []database.Message) error {
 	if len(messages) == 0 {
 		return nil
@@ -122,7 +147,10 @@ func (c *Cosmo) AddMessage(ctx context.Context, messages []database.Message) err
 				return
 			}
 
-			_, err = container.CreateItem(ctx, partitionKey, bytes, nil)
+			_, err = backoff.Retry(ctx, func() (azcosmos.ItemResponse, error) {
+				return container.CreateItem(ctx, partitionKey, bytes, nil)
+			}, c.getRetryParams()...)
+
 			if err != nil {
 				finalErr = errors.Join(finalErr, err)
 				return
@@ -133,22 +161,6 @@ func (c *Cosmo) AddMessage(ctx context.Context, messages []database.Message) err
 	pool.StopWait()
 
 	return finalErr
-}
-
-func (c *Cosmo) getMessageContainer() (*azcosmos.ContainerClient, error) {
-	if err := c.setupContainers(); err != nil {
-		return nil, err
-	}
-
-	return c.cl.NewContainer(messagesContainer)
-}
-
-func (c *Cosmo) getDuplicateContainer() (*azcosmos.ContainerClient, error) {
-	if err := c.setupContainers(); err != nil {
-		return nil, err
-	}
-
-	return c.cl.NewContainer(duplicateContainer)
 }
 
 func (c *Cosmo) GetLatestMessages(
@@ -204,9 +216,11 @@ func (c *Cosmo) Clear(ctx context.Context, transactionSource database.Transactio
 		copyMsg := m1
 
 		pool.Submit(func() {
-			if _, deleteErr := container.DeleteItem(
-				ctx,
-				azcosmos.NewPartitionKeyString(string(transactionSource)), copyMsg.ID, nil); deleteErr != nil {
+			if _, deleteErr := backoff.Retry(ctx, func() (azcosmos.ItemResponse, error) {
+				return container.DeleteItem(
+					ctx,
+					azcosmos.NewPartitionKeyString(string(transactionSource)), copyMsg.ID, nil)
+			}, c.getRetryParams()...); deleteErr != nil {
 				err = errors.Join(err, deleteErr)
 			}
 		})
@@ -235,7 +249,10 @@ func (c *Cosmo) UpdateMessages(ctx context.Context, messages []*database.Message
 				return
 			}
 
-			_, err = container.UpsertItem(ctx, partitionKey, bytes, nil)
+			_, err = backoff.Retry(ctx, func() (azcosmos.ItemResponse, error) {
+				return container.UpsertItem(ctx, partitionKey, bytes, nil)
+			}, c.getRetryParams()...)
+
 			if err != nil {
 				err = errors.Join(err, err)
 			}
@@ -245,6 +262,12 @@ func (c *Cosmo) UpdateMessages(ctx context.Context, messages []*database.Message
 	pool.StopWait()
 
 	return err
+}
+
+type duplicateKey struct {
+	ID                string `json:"id"`
+	CreatedAt         string `json:"createdAt"`
+	TransactionSource string `json:"transactionSource"`
 }
 
 func (c *Cosmo) AddDuplicateKey(
@@ -259,36 +282,39 @@ func (c *Cosmo) AddDuplicateKey(
 
 	partitionKey := azcosmos.NewPartitionKeyString(string(source))
 
-	b, err := json.Marshal(map[string]string{
-		"id":                key,
-		"createdAt":         time.Now().UTC().Format(time.RFC3339),
-		"transactionSource": string(source),
+	b, err := json.Marshal(duplicateKey{
+		ID:                key,
+		CreatedAt:         time.Now().UTC().Format(time.RFC3339),
+		TransactionSource: string(source),
 	})
 	if err != nil {
 		return err
 	}
 
-	_, err = container.CreateItem(ctx, partitionKey, b, nil)
+	_, err = backoff.Retry(ctx, func() (azcosmos.ItemResponse, error) {
+		return container.CreateItem(ctx, partitionKey, b, nil)
+	}, c.getRetryParams()...)
+
 	return err
 }
 
-func (c *Cosmo) IsDuplicateKeyExists(
+func (c *Cosmo) GetDuplicates(
 	ctx context.Context,
-	key string,
+	keys []string,
 	source database.TransactionSource,
-) (bool, error) {
+) ([]string, error) {
 	container, err := c.getDuplicateContainer()
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
 	partitionKey := azcosmos.NewPartitionKeyString(string(source))
 
-	query := "SELECT * FROM c where c.id = @id"
+	query := "SELECT c.id FROM c where ARRAY_CONTAINS(@id, c.id)"
 	parameters := []azcosmos.QueryParameter{
 		{
 			Name:  "@id",
-			Value: key,
+			Value: keys,
 		},
 	}
 
@@ -296,16 +322,23 @@ func (c *Cosmo) IsDuplicateKeyExists(
 		QueryParameters: parameters,
 	})
 
+	var existing []string
+
 	for pager.More() {
 		response, pageErr := pager.NextPage(ctx)
 		if pageErr != nil {
-			return false, pageErr
+			return nil, pageErr
 		}
 
-		if len(response.Items) > 0 {
-			return true, nil
+		for _, item := range response.Items {
+			var parsed duplicateKey
+			if err = json.Unmarshal(item, &parsed); err != nil {
+				return nil, err
+			}
+
+			existing = append(existing, parsed.ID)
 		}
 	}
 
-	return false, nil
+	return existing, nil
 }

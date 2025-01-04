@@ -5,9 +5,6 @@ import (
 	"crypto/sha512"
 	"fmt"
 
-	"github.com/cockroachdb/errors"
-
-	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/common"
 	"github.com/skynet2/firefly-iii-privatbank-importer/pkg/database"
 )
 
@@ -23,26 +20,36 @@ func NewDuplicateCleaner(
 	}
 }
 
-func (d *DuplicateCleaner) IsDuplicate(
+func (d *DuplicateCleaner) GetDuplicates(
 	ctx context.Context,
-	key string,
+	keys []string,
 	txSource database.TransactionSource,
-) error {
-	if key == "" {
-		return nil
+) (map[string]struct{}, error) {
+	var hashedKeys []string
+	for _, key := range keys {
+		if key == "" {
+			continue
+		}
+
+		hashedKeys = append(hashedKeys, d.HashKey(key))
 	}
 
-	key = d.hash(key)
-	exists, err := d.repo.IsDuplicateKeyExists(ctx, key, txSource)
+	final := map[string]struct{}{}
+
+	if len(hashedKeys) == 0 {
+		return final, nil
+	}
+
+	exists, err := d.repo.GetDuplicates(ctx, hashedKeys, txSource)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	if exists {
-		return errors.WithStack(common.ErrDuplicate)
+	for _, key := range exists {
+		final[key] = struct{}{}
 	}
 
-	return nil
+	return final, nil
 }
 
 func (d *DuplicateCleaner) AddDuplicateKey(
@@ -54,12 +61,12 @@ func (d *DuplicateCleaner) AddDuplicateKey(
 		return nil
 	}
 
-	key = d.hash(key)
+	key = d.HashKey(key)
 
 	return d.repo.AddDuplicateKey(ctx, key, txSource)
 }
 
-func (d *DuplicateCleaner) hash(bv string) string {
+func (d *DuplicateCleaner) HashKey(bv string) string {
 	shaImpl := sha512.New()
 	shaImpl.Write([]byte(bv))
 
