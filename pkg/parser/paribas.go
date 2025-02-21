@@ -150,7 +150,7 @@ func (p *Paribas) ParseMessages(
 
 			switch transactionType {
 			case "Transakcja kartą", "Transakcja BLIK", "Prowizje i opłaty",
-				"Blokada środków", "Operacja gotówkowa", "Inne operacje":
+				"Blokada środków", "Operacja gotówkowa", "Inne operacje", "Przelew podatkowy":
 				if amountParsed.GreaterThan(decimal.Zero) {
 					tx.Type = database.TransactionTypeIncome
 					tx.SourceAmount = amountParsed.Abs()
