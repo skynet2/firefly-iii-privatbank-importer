@@ -155,6 +155,11 @@ func fetchAccountData() (map[int]simpleAccountData, error) {
 			return nil, errors.Newf("failed to parse account ID: %s", account.ID)
 		}
 
+		if (account.Attributes.CurrencyID) == "" {
+			log.Info().Str("account_id", account.ID).Msg("currency ID is empty")
+			continue
+		}
+
 		pasedCurrency, parseErr := strconv.Atoi(account.Attributes.CurrencyID)
 		if parseErr != nil {
 			return nil, errors.Newf("failed to parse currency ID: %s", account.Attributes.CurrencyID)
