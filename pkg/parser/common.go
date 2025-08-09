@@ -15,7 +15,11 @@ func stripAccountPrefix(account string) string {
 	account = strings.ToLower(account)
 	var accountStriped strings.Builder
 
-	for _, l := range account {
+	for idx, l := range account {
+		if !unicode.IsLetter(l) && idx == 0 {
+			return account
+		}
+
 		if unicode.IsLetter(l) {
 			continue
 		}

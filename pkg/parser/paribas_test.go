@@ -20,26 +20,50 @@ var blikV2 []byte
 //go:embed testdata/two_expenses.xlsx
 var twoExpenses []byte
 
+//go:embed testdata/two_expenses_v2.xlsx
+var twoExpensesV2 []byte
+
 //go:embed testdata/to_phone.xlsx
 var toPhone []byte
+
+//go:embed testdata/to_phone_v2.xlsx
+var toPhoneV2 []byte
 
 //go:embed testdata/blokada_srodkow.xlsx
 var blokada []byte
 
+//go:embed testdata/blokada_srodkow_v2.xlsx
+var blokadaV2 []byte
+
 //go:embed testdata/income.xlsx
 var income []byte
+
+//go:embed testdata/income_v2.xlsx
+var incomeV2 []byte
 
 //go:embed testdata/transfer_to_private_acc.xlsx
 var transferToPrivateAccount []byte
 
+//go:embed testdata/transfer_to_private_acc_v2.xlsx
+var transferToPrivateAccountV2 []byte
+
 //go:embed testdata/credit_card.xlsx
 var creditCardPayment []byte
+
+//go:embed testdata/credit_card_v2.xlsx
+var creditCardPaymentV2 []byte
 
 //go:embed testdata/currency_exchange.xlsx
 var currencyExchange []byte
 
+//go:embed testdata/currency_exchange_v2.xlsx
+var currencyExchangeV2 []byte
+
 //go:embed testdata/transfer_betwee_accounts.xlsx
 var betweenAccounts []byte
+
+//go:embed testdata/transfer_between_accounts_v2.xlsx
+var betweenAccountsV2 []byte
 
 //go:embed testdata/currency_exchange2.xlsx
 var currencyExchange2 []byte
@@ -62,8 +86,14 @@ var accountCommissionV2 []byte
 //go:embed testdata/cash_withdrawal.xlsx
 var cashWithdrawal []byte
 
+//go:embed testdata/cash_withdrawal_v2.xlsx
+var cashWithdrawalV2 []byte
+
 //go:embed testdata/similar_transfers.xlsx
 var similarTransfers []byte
+
+//go:embed testdata/similar_transfers_v2.xlsx
+var similarTransfersV2 []byte
 
 //go:embed testdata/blik_refund.xlsx
 var blikRefund []byte
@@ -74,29 +104,50 @@ var blikRefundV2 []byte
 //go:embed testdata/inne_withdrawal.xlsx
 var inneWithdrawal []byte
 
+//go:embed testdata/inne_withdrawal_v2.xlsx
+var inneWithdrawalV2 []byte
+
 //go:embed testdata/income_multicurrency.xlsx
 var incomeMultiCurrency []byte
 
 func TestInneWithdrawal(t *testing.T) {
-	srv := parser.NewParibas()
-
-	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+	var testCases = []struct {
+		description string
+		data        []byte
+	}{
 		{
-			Data: inneWithdrawal,
+			description: "v1 inne withdrawal",
+			data:        inneWithdrawal,
 		},
-	})
-	assert.NoError(t, err)
-	assert.NotNil(t, resp)
-	assert.Len(t, resp, 1)
+		{
+			description: "v2 inne withdrawal",
+			data:        inneWithdrawalV2,
+		},
+	}
 
-	assert.Equal(t, database.TransactionTypeExpense, resp[0].Type)
-	assert.Equal(t, "8.63", resp[0].SourceAmount.StringFixed(2))
-	assert.Equal(t, "PLN", resp[0].SourceCurrency)
-	assert.Equal(t, "111111111111111111111", resp[0].SourceAccount)
+	for _, testCase := range testCases {
+		t.Run(testCase.description, func(t *testing.T) {
+			srv := parser.NewParibas()
 
-	assert.Equal(t, "00:00", resp[0].DateFromMessage)
-	assert.Equal(t, "2024-04-04 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
-	assert.Equal(t, "Name Surname", resp[0].Description)
+			resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+				{
+					Data: testCase.data,
+				},
+			})
+			assert.NoError(t, err)
+			assert.NotNil(t, resp)
+			assert.Len(t, resp, 1)
+
+			assert.Equal(t, database.TransactionTypeExpense, resp[0].Type)
+			assert.Equal(t, "8.63", resp[0].SourceAmount.StringFixed(2))
+			assert.Equal(t, "PLN", resp[0].SourceCurrency)
+			assert.Equal(t, "111111111111111111111", resp[0].SourceAccount)
+
+			assert.Equal(t, "00:00", resp[0].DateFromMessage)
+			assert.Equal(t, "2024-04-04 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
+			assert.Equal(t, "Name Surname", resp[0].Description)
+		})
+	}
 }
 
 func TestBlikRefund(t *testing.T) {
@@ -140,50 +191,86 @@ func TestBlikRefund(t *testing.T) {
 }
 
 func TestCashWithdrawal(t *testing.T) {
-	srv := parser.NewParibas()
-
-	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+	var testCases = []struct {
+		description string
+		data        []byte
+	}{
 		{
-			Data: cashWithdrawal,
+			description: "v1 cash withdrawal",
+			data:        cashWithdrawal,
 		},
-	})
-	assert.NoError(t, err)
-	assert.NotNil(t, resp)
-	assert.Len(t, resp, 1)
+		{
+			description: "v2 cash withdrawal",
+			data:        cashWithdrawalV2,
+		},
+	}
 
-	assert.Equal(t, database.TransactionTypeExpense, resp[0].Type)
-	assert.Equal(t, "600.00", resp[0].SourceAmount.StringFixed(2))
-	assert.Equal(t, "PLN", resp[0].SourceCurrency)
-	assert.Equal(t, "11111111111111111111111111", resp[0].SourceAccount)
+	for _, testCase := range testCases {
+		t.Run(testCase.description, func(t *testing.T) {
+			srv := parser.NewParibas()
 
-	assert.Equal(t, "00:00", resp[0].DateFromMessage)
-	assert.Equal(t, "2024-03-02 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
-	assert.Equal(t, "1111------222 XX YY zz 4321321 POL 600,00 PLN 2024-03-02", resp[0].Description)
+			resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+				{
+					Data: testCase.data,
+				},
+			})
+			assert.NoError(t, err)
+			assert.NotNil(t, resp)
+			assert.Len(t, resp, 1)
+
+			assert.Equal(t, database.TransactionTypeExpense, resp[0].Type)
+			assert.Equal(t, "600.00", resp[0].SourceAmount.StringFixed(2))
+			assert.Equal(t, "PLN", resp[0].SourceCurrency)
+			assert.Equal(t, "11111111111111111111111111", resp[0].SourceAccount)
+
+			assert.Equal(t, "00:00", resp[0].DateFromMessage)
+			assert.Equal(t, "2024-03-02 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
+			assert.Equal(t, "1111------222 XX YY zz 4321321 POL 600,00 PLN 2024-03-02", resp[0].Description)
+		})
+	}
 }
 
 func TestSimilarTransfers(t *testing.T) {
-	srv := parser.NewParibas()
-
-	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+	var testCases = []struct {
+		description string
+		data        []byte
+	}{
 		{
-			Data: similarTransfers,
+			description: "v1 similar transfer",
+			data:        similarTransfers,
 		},
-	})
-	assert.NoError(t, err)
-	assert.NotNil(t, resp)
-	assert.Len(t, resp, 2)
+		{
+			description: "v2 similar transfer",
+			data:        similarTransfersV2,
+		},
+	}
 
-	assert.Equal(t, database.TransactionTypeRemoteTransfer, resp[0].Type)
-	assert.Equal(t, "11.68", resp[0].SourceAmount.StringFixed(2))
-	assert.Equal(t, "PLN", resp[0].SourceCurrency)
-	assert.Equal(t, "22222222222222222222222222", resp[0].SourceAccount)
+	for _, testCase := range testCases {
+		t.Run(testCase.description, func(t *testing.T) {
+			srv := parser.NewParibas()
 
-	assert.Equal(t, "00:00", resp[0].DateFromMessage)
-	assert.Equal(t, "2024-03-01 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
-	assert.Equal(t, "Common Desription", resp[0].Description)
+			resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+				{
+					Data: testCase.data,
+				},
+			})
+			assert.NoError(t, err)
+			assert.NotNil(t, resp)
+			assert.Len(t, resp, 2)
 
-	assert.Equal(t, "22.16", resp[1].SourceAmount.StringFixed(2))
-	assert.Equal(t, "PLN", resp[1].SourceCurrency)
+			assert.Equal(t, database.TransactionTypeRemoteTransfer, resp[0].Type)
+			assert.Equal(t, "11.68", resp[0].SourceAmount.StringFixed(2))
+			assert.Equal(t, "PLN", resp[0].SourceCurrency)
+			assert.Equal(t, "22222222222222222222222222", resp[0].SourceAccount)
+
+			assert.Equal(t, "00:00", resp[0].DateFromMessage)
+			assert.Equal(t, "2024-03-01 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
+			assert.Equal(t, "Common Desription", resp[0].Description)
+
+			assert.Equal(t, "22.16", resp[1].SourceAmount.StringFixed(2))
+			assert.Equal(t, "PLN", resp[1].SourceCurrency)
+		})
+	}
 }
 
 func TestExpenseCommission(t *testing.T) {
@@ -253,29 +340,47 @@ func TestPshelevExpense(t *testing.T) {
 }
 
 func TestToPhone(t *testing.T) {
-	srv := parser.NewParibas()
-
-	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+	var testCases = []struct {
+		description string
+		data        []byte
+	}{
 		{
-			Data: toPhone,
+			description: "v1 to phone",
+			data:        toPhone,
 		},
-	})
-	assert.NoError(t, err)
-	assert.NotNil(t, resp)
-	assert.Len(t, resp, 1)
+		{
+			description: "v2 to phone",
+			data:        toPhoneV2,
+		},
+	}
 
-	assert.Equal(t, database.TransactionTypeRemoteTransfer, resp[0].Type)
-	assert.Equal(t, "200.00", resp[0].SourceAmount.StringFixed(2))
-	assert.Equal(t, "PLN", resp[0].SourceCurrency)
-	assert.Equal(t, "11111111111111111111111", resp[0].SourceAccount)
+	for _, testCase := range testCases {
+		t.Run(testCase.description, func(t *testing.T) {
+			srv := parser.NewParibas()
 
-	assert.Equal(t, "200.00", resp[0].DestinationAmount.StringFixed(2))
-	assert.Equal(t, "PLN", resp[0].DestinationCurrency)
-	assert.Equal(t, "22222222222222222222222", resp[0].DestinationAccount)
+			resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+				{
+					Data: testCase.data,
+				},
+			})
+			assert.NoError(t, err)
+			assert.NotNil(t, resp)
+			assert.Len(t, resp, 1)
 
-	assert.Equal(t, "00:00", resp[0].DateFromMessage)
-	assert.Equal(t, "2024-02-07 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
-	assert.Equal(t, "Some Descriptions", resp[0].Description)
+			assert.Equal(t, database.TransactionTypeRemoteTransfer, resp[0].Type)
+			assert.Equal(t, "200.00", resp[0].SourceAmount.StringFixed(2))
+			assert.Equal(t, "PLN", resp[0].SourceCurrency)
+			assert.Equal(t, "11111111111111111111111", resp[0].SourceAccount)
+
+			assert.Equal(t, "200.00", resp[0].DestinationAmount.StringFixed(2))
+			assert.Equal(t, "PLN", resp[0].DestinationCurrency)
+			assert.Equal(t, "22222222222222222222222", resp[0].DestinationAccount)
+
+			assert.Equal(t, "00:00", resp[0].DateFromMessage)
+			assert.Equal(t, "2024-02-07 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
+			assert.Equal(t, "Some Descriptions", resp[0].Description)
+		})
+	}
 }
 
 func TestParibasBlik(t *testing.T) {
@@ -318,44 +423,82 @@ func TestParibasBlik(t *testing.T) {
 }
 
 func TestTwoExpenses(t *testing.T) {
-	srv := parser.NewParibas()
-
-	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+	var testCases = []struct {
+		description string
+		data        []byte
+	}{
 		{
-			Data: twoExpenses,
+			description: "v1 two expenses",
+			data:        twoExpenses,
 		},
-	})
-	assert.NoError(t, err)
-	assert.NotNil(t, resp)
-	assert.Len(t, resp, 2)
+		{
+			description: "v2 two expenses",
+			data:        twoExpensesV2,
+		},
+	}
 
-	assert.NotEqual(t, resp[0].ID, resp[1].ID)
-	assert.Equal(t, database.TransactionTypeExpense, resp[0].Type)
-	assert.Equal(t, "500.00", resp[0].SourceAmount.StringFixed(2))
-	assert.Equal(t, "USD", resp[0].SourceCurrency)
+	for _, testCase := range testCases {
+		t.Run(testCase.description, func(t *testing.T) {
+			srv := parser.NewParibas()
+
+			resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+				{
+					Data: testCase.data,
+				},
+			})
+			assert.NoError(t, err)
+			assert.NotNil(t, resp)
+			assert.Len(t, resp, 2)
+
+			assert.NotEqual(t, resp[0].ID, resp[1].ID)
+			assert.Equal(t, database.TransactionTypeExpense, resp[0].Type)
+			assert.Equal(t, "500.00", resp[0].SourceAmount.StringFixed(2))
+			assert.Equal(t, "USD", resp[0].SourceCurrency)
+		})
+	}
 }
 
 func TestParibasBlokadaSrodkow(t *testing.T) {
-	srv := parser.NewParibas()
-
-	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+	var testCases = []struct {
+		description string
+		data        []byte
+	}{
 		{
-			Data: blokada,
+			description: "v1 blokada",
+			data:        blokada,
 		},
-	})
-	assert.NoError(t, err)
-	assert.NotNil(t, resp)
-	assert.Len(t, resp, 1)
+		{
+			description: "v2 blokada",
+			data:        blokadaV2,
+		},
+	}
 
-	assert.Equal(t, database.TransactionTypeExpense, resp[0].Type)
-	assert.Equal(t, "500.00", resp[0].SourceAmount.StringFixed(2))
-	assert.Equal(t, "USD", resp[0].SourceCurrency)
-	assert.Equal(t, "1234567", resp[0].SourceAccount)
-	assert.Equal(t, "00:00", resp[0].DateFromMessage)
-	assert.Equal(t, "2024-02-08 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
-	assert.Equal(t, "PAYPAL  XTB S 111 PL 111______111 500,00 USD ", resp[0].Description)
-	assert.ErrorContains(t, resp[0].ParsingError, "transaction is still pending. will skip from firefly for now")
+	for _, testCase := range testCases {
+		t.Run(testCase.description, func(t *testing.T) {
+
+			srv := parser.NewParibas()
+
+			resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+				{
+					Data: testCase.data,
+				},
+			})
+			assert.NoError(t, err)
+			assert.NotNil(t, resp)
+			assert.Len(t, resp, 1)
+
+			assert.Equal(t, database.TransactionTypeExpense, resp[0].Type)
+			assert.Equal(t, "500.00", resp[0].SourceAmount.StringFixed(2))
+			assert.Equal(t, "USD", resp[0].SourceCurrency)
+			assert.Equal(t, "1234567", resp[0].SourceAccount)
+			assert.Equal(t, "00:00", resp[0].DateFromMessage)
+			assert.Equal(t, "2024-02-08 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
+			assert.Equal(t, "PAYPAL  XTB S 111 PL 111______111 500,00 USD ", resp[0].Description)
+			assert.ErrorContains(t, resp[0].ParsingError, "transaction is still pending. will skip from firefly for now")
+		})
+	}
 }
+
 func TestMultiCurrencyPayment(t *testing.T) {
 	srv := parser.NewParibas()
 
@@ -383,30 +526,49 @@ func TestMultiCurrencyPayment(t *testing.T) {
 }
 
 func TestParibasIncome(t *testing.T) {
-	srv := parser.NewParibas()
-
-	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+	var testCases = []struct {
+		description string
+		data        []byte
+	}{
 		{
-			Data: income,
+			description: "v1 income",
+			data:        income,
 		},
-	})
-	assert.NoError(t, err)
-	assert.NotNil(t, resp)
-	assert.Len(t, resp, 1)
+		{
+			description: "v2 income",
+			data:        incomeV2,
+		},
+	}
 
-	assert.NoError(t, resp[0].ParsingError)
-	assert.Equal(t, database.TransactionTypeIncome, resp[0].Type)
-	assert.Equal(t, "11.48", resp[0].DestinationAmount.StringFixed(2))
-	assert.Equal(t, "EUR", resp[0].DestinationCurrency)
-	assert.Equal(t, "123443252341234214321331", resp[0].DestinationAccount)
+	for _, testCase := range testCases {
+		t.Run(testCase.description, func(t *testing.T) {
 
-	assert.Equal(t, "11.48", resp[0].SourceAmount.StringFixed(2))
-	assert.Equal(t, "EUR", resp[0].SourceCurrency)
-	assert.Equal(t, "/es123432523424213132", resp[0].SourceAccount)
+			srv := parser.NewParibas()
 
-	assert.Equal(t, "00:00", resp[0].DateFromMessage)
-	assert.Equal(t, "2024-02-01 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
-	assert.Equal(t, "SOFTWARE DEVELOPMENT SERVICES, INVOICE NO 1-2 XXYY, 31.01.2024", resp[0].Description)
+			resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+				{
+					Data: testCase.data,
+				},
+			})
+			assert.NoError(t, err)
+			assert.NotNil(t, resp)
+			assert.Len(t, resp, 1)
+
+			assert.NoError(t, resp[0].ParsingError)
+			assert.Equal(t, database.TransactionTypeIncome, resp[0].Type)
+			assert.Equal(t, "11.48", resp[0].DestinationAmount.StringFixed(2))
+			assert.Equal(t, "EUR", resp[0].DestinationCurrency)
+			assert.Equal(t, "123443252341234214321331", resp[0].DestinationAccount)
+
+			assert.Equal(t, "11.48", resp[0].SourceAmount.StringFixed(2))
+			assert.Equal(t, "EUR", resp[0].SourceCurrency)
+			assert.Equal(t, "/es123432523424213132", resp[0].SourceAccount)
+
+			assert.Equal(t, "00:00", resp[0].DateFromMessage)
+			assert.Equal(t, "2024-02-01 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
+			assert.Equal(t, "SOFTWARE DEVELOPMENT SERVICES, INVOICE NO 1-2 XXYY, 31.01.2024", resp[0].Description)
+		})
+	}
 }
 
 func TestParibasIncomeMultiCurrency(t *testing.T) {
@@ -437,80 +599,136 @@ func TestParibasIncomeMultiCurrency(t *testing.T) {
 }
 
 func TestParibasTransferToPrivateAccount(t *testing.T) {
-	srv := parser.NewParibas()
-
-	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+	var testCases = []struct {
+		description string
+		data        []byte
+	}{
 		{
-			Data: transferToPrivateAccount,
+			description: "v1 transfer to private account",
+			data:        transferToPrivateAccount,
 		},
-	})
+		{
+			description: "v2 transfer to private account",
+			data:        transferToPrivateAccountV2,
+		},
+	}
 
-	assert.NoError(t, err)
-	assert.NotNil(t, resp)
-	assert.Len(t, resp, 1)
+	for _, testCase := range testCases {
+		t.Run(testCase.description, func(t *testing.T) {
 
-	assert.Equal(t, database.TransactionTypeRemoteTransfer, resp[0].Type)
-	assert.Equal(t, "PLN", resp[0].SourceCurrency)
-	assert.Equal(t, "1200.00", resp[0].SourceAmount.StringFixed(2))
-	assert.Equal(t, "PLN", resp[0].DestinationCurrency)
-	assert.Equal(t, "1200.00", resp[0].DestinationAmount.StringFixed(2))
+			srv := parser.NewParibas()
 
-	assert.Equal(t, "22222222222222222222222222222222", resp[0].SourceAccount)
-	assert.Equal(t, "1111111111111111111111111111", resp[0].DestinationAccount)
-	assert.Equal(t, "00:00", resp[0].DateFromMessage)
-	assert.Equal(t, "2024-02-01 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
-	assert.Equal(t, "Przelew środków", resp[0].Description)
+			resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+				{
+					Data: testCase.data,
+				},
+			})
+
+			assert.NoError(t, err)
+			assert.NotNil(t, resp)
+			assert.Len(t, resp, 1)
+
+			assert.Equal(t, database.TransactionTypeRemoteTransfer, resp[0].Type)
+			assert.Equal(t, "PLN", resp[0].SourceCurrency)
+			assert.Equal(t, "1200.00", resp[0].SourceAmount.StringFixed(2))
+			assert.Equal(t, "PLN", resp[0].DestinationCurrency)
+			assert.Equal(t, "1200.00", resp[0].DestinationAmount.StringFixed(2))
+
+			assert.Equal(t, "22222222222222222222222222222222", resp[0].SourceAccount)
+			assert.Equal(t, "1111111111111111111111111111", resp[0].DestinationAccount)
+			assert.Equal(t, "00:00", resp[0].DateFromMessage)
+			assert.Equal(t, "2024-02-01 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
+			assert.Equal(t, "Przelew środków", resp[0].Description)
+		})
+	}
 }
 
 func TestParibasCreditCardRepayment(t *testing.T) {
-	srv := parser.NewParibas()
-
-	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+	var testCases = []struct {
+		description string
+		data        []byte
+	}{
 		{
-			Data: creditCardPayment,
+			description: "v1 credit card repayment",
+			data:        creditCardPayment,
 		},
-	})
+		{
+			description: "v2 credit card repayment",
+			data:        creditCardPaymentV2,
+		},
+	}
 
-	assert.NoError(t, err)
-	assert.NotNil(t, resp)
-	assert.Len(t, resp, 1)
+	for _, testCase := range testCases {
+		t.Run(testCase.description, func(t *testing.T) {
+			srv := parser.NewParibas()
 
-	assert.Equal(t, database.TransactionTypeInternalTransfer, resp[0].Type)
-	assert.Equal(t, "PLN", resp[0].SourceCurrency)
-	assert.Equal(t, "1.00", resp[0].SourceAmount.StringFixed(2))
-	assert.Equal(t, "PLN", resp[0].DestinationCurrency)
-	assert.Equal(t, "1.00", resp[0].DestinationAmount.StringFixed(2))
+			resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+				{
+					Data: testCase.data,
+				},
+			})
 
-	assert.Equal(t, "22222222222222222222222222", resp[0].SourceAccount)
-	assert.Equal(t, "11111111111111111111111111", resp[0].DestinationAccount)
-	assert.Equal(t, "00:00", resp[0].DateFromMessage)
-	assert.Equal(t, "2024-10-20 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
-	assert.Equal(t, "Spłata karty", resp[0].Description)
+			assert.NoError(t, err)
+			assert.NotNil(t, resp)
+			assert.Len(t, resp, 1)
+
+			assert.Equal(t, database.TransactionTypeInternalTransfer, resp[0].Type)
+			assert.Equal(t, "PLN", resp[0].SourceCurrency)
+			assert.Equal(t, "1.00", resp[0].SourceAmount.StringFixed(2))
+			assert.Equal(t, "PLN", resp[0].DestinationCurrency)
+			assert.Equal(t, "1.00", resp[0].DestinationAmount.StringFixed(2))
+
+			assert.Equal(t, "22222222222222222222222222", resp[0].SourceAccount)
+			assert.Equal(t, "11111111111111111111111111", resp[0].DestinationAccount)
+			assert.Equal(t, "00:00", resp[0].DateFromMessage)
+			assert.Equal(t, "2024-10-20 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
+			assert.Equal(t, "Spłata karty", resp[0].Description)
+		})
+	}
 }
 
 func TestParibasCurrencyExchange(t *testing.T) {
-	srv := parser.NewParibas()
-
-	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+	var testCases = []struct {
+		description string
+		data        []byte
+	}{
 		{
-			Data: currencyExchange,
+			description: "v1 currency exchange",
+			data:        currencyExchange,
 		},
-	})
-	assert.NoError(t, err)
-	assert.NotNil(t, resp)
-	assert.Len(t, resp, 1)
+		{
+			description: "v2 currency exchange",
+			data:        currencyExchangeV2,
+		},
+	}
 
-	assert.Equal(t, database.TransactionTypeInternalTransfer, resp[0].Type)
-	assert.Equal(t, "USD", resp[0].SourceCurrency)
-	assert.Equal(t, "1500.00", resp[0].SourceAmount.StringFixed(2))
-	assert.Equal(t, "PLN", resp[0].DestinationCurrency)
-	assert.Equal(t, "6000.90", resp[0].DestinationAmount.StringFixed(2))
+	for _, testCase := range testCases {
+		t.Run(testCase.description, func(t *testing.T) {
 
-	assert.Equal(t, "1111111111111", resp[0].SourceAccount)
-	assert.Equal(t, "22222222222222222", resp[0].DestinationAccount)
-	assert.Equal(t, "00:00", resp[0].DateFromMessage)
-	assert.Equal(t, "2024-01-24 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
-	assert.Equal(t, "USD PLN 4.0006 TWM2131232132131", resp[0].Description)
+			srv := parser.NewParibas()
+
+			resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+				{
+					Data: testCase.data,
+				},
+			})
+			assert.NoError(t, err)
+			assert.NotNil(t, resp)
+			assert.Len(t, resp, 1)
+
+			assert.Equal(t, database.TransactionTypeInternalTransfer, resp[0].Type)
+			assert.Equal(t, "USD", resp[0].SourceCurrency)
+			assert.Equal(t, "1500.00", resp[0].SourceAmount.StringFixed(2))
+			assert.Equal(t, "PLN", resp[0].DestinationCurrency)
+			assert.Equal(t, "6000.90", resp[0].DestinationAmount.StringFixed(2))
+
+			assert.Equal(t, "1111111111111", resp[0].SourceAccount)
+			assert.Equal(t, "22222222222222222", resp[0].DestinationAccount)
+			assert.Equal(t, "00:00", resp[0].DateFromMessage)
+			assert.Equal(t, "2024-01-24 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
+			assert.Equal(t, "USD PLN 4.0006 TWM2131232132131", resp[0].Description)
+		})
+	}
 }
 
 func TestParibasCurrencyExchange2(t *testing.T) {
@@ -542,30 +760,49 @@ func TestParibasCurrencyExchange2(t *testing.T) {
 }
 
 func TestParibasBetweenAccounts(t *testing.T) {
-	srv := parser.NewParibas()
-
-	resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+	var testCases = []struct {
+		description string
+		data        []byte
+	}{
 		{
-			Data: betweenAccounts,
+			description: "v1 two expenses",
+			data:        betweenAccounts,
 		},
-	})
-	assert.NoError(t, err)
-	assert.NotNil(t, resp)
-	assert.Len(t, resp, 1)
-	assert.Len(t, resp[0].DuplicateTransactions, 1)
+		{
+			description: "v2 two expenses",
+			data:        betweenAccountsV2,
+		},
+	}
 
-	assert.Equal(t, database.TransactionTypeInternalTransfer, resp[0].DuplicateTransactions[0].Type)
-	assert.Equal(t, database.TransactionTypeInternalTransfer, resp[0].Type)
-	assert.Equal(t, "PLN", resp[0].SourceCurrency)
-	assert.Equal(t, "1200.00", resp[0].SourceAmount.StringFixed(2))
-	assert.Equal(t, "PLN", resp[0].DestinationCurrency)
-	assert.Equal(t, "1200.00", resp[0].DestinationAmount.StringFixed(2))
+	for _, testCase := range testCases {
+		t.Run(testCase.description, func(t *testing.T) {
 
-	assert.Equal(t, "11111111111111111111111111", resp[0].DestinationAccount)
-	assert.Equal(t, "22222222222222222222222222", resp[0].SourceAccount)
-	assert.Equal(t, "00:00", resp[0].DateFromMessage)
-	assert.Equal(t, "2024-02-01 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
-	assert.Equal(t, "Przelew środków", resp[0].Description)
+			srv := parser.NewParibas()
+
+			resp, err := srv.ParseMessages(context.TODO(), []*parser.Record{
+				{
+					Data: testCase.data,
+				},
+			})
+			assert.NoError(t, err)
+			assert.NotNil(t, resp)
+			assert.Len(t, resp, 1)
+			assert.Len(t, resp[0].DuplicateTransactions, 1)
+
+			assert.Equal(t, database.TransactionTypeInternalTransfer, resp[0].DuplicateTransactions[0].Type)
+			assert.Equal(t, database.TransactionTypeInternalTransfer, resp[0].Type)
+			assert.Equal(t, "PLN", resp[0].SourceCurrency)
+			assert.Equal(t, "1200.00", resp[0].SourceAmount.StringFixed(2))
+			assert.Equal(t, "PLN", resp[0].DestinationCurrency)
+			assert.Equal(t, "1200.00", resp[0].DestinationAmount.StringFixed(2))
+
+			assert.Equal(t, "11111111111111111111111111", resp[0].DestinationAccount)
+			assert.Equal(t, "22222222222222222222222222", resp[0].SourceAccount)
+			assert.Equal(t, "00:00", resp[0].DateFromMessage)
+			assert.Equal(t, "2024-02-01 00:00:00 +0000", resp[0].Date.Format("2006-01-02 15:04:05 -0700"))
+			assert.Equal(t, "Przelew środków", resp[0].Description)
+		})
+	}
 }
 
 func TestSplitExcel(t *testing.T) {
