@@ -273,14 +273,18 @@ func (p *Paribas) merge(
 ) ([]*database.Transaction, error) {
 	var final []*database.Transaction
 
+	var isPaymentByCard = func(tx *database.Transaction) bool {
+		return tx.OriginalTxType == "Spłata karty"
+	}
+
 	for _, tx := range transactions {
+
 		if tx.ParsingError != nil { // pass-through
 			final = append(final, tx)
 			continue
 		}
 
 		isDuplicate := false
-		isCreditPayment := tx.OriginalTxType == "Spłata karty"
 
 		for _, f := range final {
 			if tx.OriginalTxType == "Prowizje i opłaty" {
@@ -291,7 +295,25 @@ func (p *Paribas) merge(
 				continue
 			}
 
-			if !isCreditPayment && f.Description != tx.Description {
+			isCreditPaymentTx := isPaymentByCard(tx)
+			isCreditPaymentF := isPaymentByCard(f)
+
+			if isCreditPaymentTx && f.Description == "Spłata karty" {
+				fmt.Println("tets")
+			}
+			if isCreditPaymentF && tx.Description == "Spłata karty" {
+				fmt.Println("tets 123")
+			}
+
+			if !(isCreditPaymentTx || isCreditPaymentF) && f.Description != tx.Description {
+				continue
+			}
+
+			if isCreditPaymentTx && f.Description != "Spłata karty" {
+				continue
+			}
+
+			if isCreditPaymentF && tx.Description != "Spłata karty" {
 				continue
 			}
 
