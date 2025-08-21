@@ -2,6 +2,7 @@ package parser
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -277,10 +278,25 @@ func (p *Paribas) merge(
 		return tx.OriginalTxType == "Spłata karty"
 	}
 
+	var filteredTransactions []*database.Transaction
+
 	for _, tx := range transactions {
+		if tx.ParsingError != nil {
+			continue
+		}
+
+		if tx.Description == "Spłata karty" || tx.Description == "Card repayment" {
+			final = append(final, tx)
+		} else {
+			filteredTransactions = append(filteredTransactions, tx)
+		}
+	}
+
+	for _, tx := range filteredTransactions {
 
 		if tx.ParsingError != nil { // pass-through
 			final = append(final, tx)
+			fmt.Println(tx.ParsingError.Error())
 			continue
 		}
 
@@ -296,24 +312,12 @@ func (p *Paribas) merge(
 			}
 
 			isCreditPaymentTx := isPaymentByCard(tx)
-			isCreditPaymentF := isPaymentByCard(f)
 
-			if isCreditPaymentTx && f.Description == "Spłata karty" {
-				fmt.Println("tets")
-			}
-			if isCreditPaymentF && tx.Description == "Spłata karty" {
-				fmt.Println("tets 123")
-			}
-
-			if !(isCreditPaymentTx || isCreditPaymentF) && f.Description != tx.Description {
+			if !isCreditPaymentTx && f.Description != tx.Description {
 				continue
 			}
 
-			if isCreditPaymentTx && f.Description != "Spłata karty" {
-				continue
-			}
-
-			if isCreditPaymentF && tx.Description != "Spłata karty" {
+			if isCreditPaymentTx && (f.Description != "Spłata karty" && f.Description != "Card repayment") {
 				continue
 			}
 
@@ -366,6 +370,32 @@ func (p *Paribas) merge(
 			tx.Type = database.TransactionTypeInternalTransfer
 
 			isDuplicate = true
+
+			////if f.Description != tx.Description {
+			//fmt.Println("-------------------------------------")
+			//fmt.Println("Transactions duplicates")
+			//fmt.Println(tx.ID)
+			//for _, d := range tx.DeduplicationKeys {
+			//	fmt.Println(d)
+			//}
+			//
+			//fmt.Println(tx.DeduplicationKeys)
+			//fmt.Println(tx.Description)
+			//fmt.Println(f.ID)
+			//for _, d := range f.DeduplicationKeys {
+			//	fmt.Println(d)
+			//}
+			//fmt.Println(f.Description)
+			//fmt.Println("-------------------------------------")
+			//
+			//for _, d := range tx.DeduplicationKeys {
+			//	if d == "PLN$$PLN$$61160014621749686750000006$$02160014621749686750000001$$2025-06-13$$599.34$$599.34$$WPŁATA KLIENTA$$$$Spłata karty$$Spłata karty" {
+			//		fmt.Println("Transaction duplicate")
+			//	}
+			//}
+			//
+			////}
+
 			f.DuplicateTransactions = append(f.DuplicateTransactions, tx)
 			break
 		}
@@ -375,6 +405,7 @@ func (p *Paribas) merge(
 		}
 
 		final = append(final, tx)
+
 	}
 
 	return final, nil
