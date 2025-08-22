@@ -336,6 +336,12 @@ func (p *Paribas) merge(
 				}
 			}
 
+			if f.SourceAccount != "" && tx.SourceAccount != "" && f.DestinationAccount != "" && tx.DestinationAccount != "" {
+				if f.SourceAccount == tx.SourceAccount && f.DestinationAccount == tx.DestinationAccount && tx.OriginalTxType == f.OriginalTxType {
+					continue
+				}
+			}
+
 			if f.SourceCurrency == "" {
 				f.SourceCurrency = tx.SourceCurrency
 			}
