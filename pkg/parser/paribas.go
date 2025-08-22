@@ -2,7 +2,6 @@ package parser
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -282,6 +281,7 @@ func (p *Paribas) merge(
 
 	for _, tx := range transactions {
 		if tx.ParsingError != nil {
+			final = append(final, tx)
 			continue
 		}
 
@@ -293,12 +293,6 @@ func (p *Paribas) merge(
 	}
 
 	for _, tx := range filteredTransactions {
-
-		if tx.ParsingError != nil { // pass-through
-			final = append(final, tx)
-			fmt.Println(tx.ParsingError.Error())
-			continue
-		}
 
 		isDuplicate := false
 
