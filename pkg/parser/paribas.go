@@ -371,31 +371,6 @@ func (p *Paribas) merge(
 
 			isDuplicate = true
 
-			////if f.Description != tx.Description {
-			//fmt.Println("-------------------------------------")
-			//fmt.Println("Transactions duplicates")
-			//fmt.Println(tx.ID)
-			//for _, d := range tx.DeduplicationKeys {
-			//	fmt.Println(d)
-			//}
-			//
-			//fmt.Println(tx.DeduplicationKeys)
-			//fmt.Println(tx.Description)
-			//fmt.Println(f.ID)
-			//for _, d := range f.DeduplicationKeys {
-			//	fmt.Println(d)
-			//}
-			//fmt.Println(f.Description)
-			//fmt.Println("-------------------------------------")
-			//
-			//for _, d := range tx.DeduplicationKeys {
-			//	if d == "PLN$$PLN$$61160014621749686750000006$$02160014621749686750000001$$2025-06-13$$599.34$$599.34$$WPŁATA KLIENTA$$$$Spłata karty$$Spłata karty" {
-			//		fmt.Println("Transaction duplicate")
-			//	}
-			//}
-			//
-			////}
-
 			f.DuplicateTransactions = append(f.DuplicateTransactions, tx)
 			break
 		}
