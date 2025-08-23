@@ -8,7 +8,6 @@ import (
 
 	"github.com/cockroachdb/errors"
 	"github.com/google/uuid"
-	"github.com/samber/lo"
 	"github.com/shopspring/decimal"
 	"github.com/tealeg/xlsx"
 
@@ -16,10 +15,16 @@ import (
 )
 
 type Paribas struct {
+	DataExtractors map[string]DataExtractor
 }
 
 func NewParibas() *Paribas {
-	return &Paribas{}
+	return &Paribas{
+		DataExtractors: map[string]DataExtractor{
+			"v1": DataExtractorV1{},
+			"v2": DataExtractorV2{},
+		},
+	}
 }
 
 func (p *Paribas) Type() database.TransactionSource {
@@ -47,6 +52,16 @@ func (p *Paribas) extractFromCellV1(cells []*xlsx.Cell) string {
 	return strings.Join(values, "-")
 }
 
+func (p *Paribas) getExtractor(cells []*xlsx.Cell) (DataExtractor, error) {
+	if len(cells) < 6 {
+		return nil, errors.New("row count is to short to determine the extractor type")
+	}
+	if cells[5].String() == "Nadawca" {
+		return p.DataExtractors["v2"], nil
+	}
+	return p.DataExtractors["v1"], nil
+}
+
 func (p *Paribas) ParseMessages(
 	ctx context.Context,
 	rawArr []*Record,
@@ -64,6 +79,15 @@ func (p *Paribas) ParseMessages(
 		}
 
 		sheet := fileData.Sheets[0]
+
+		if len(sheet.Rows) < 2 {
+			return nil, errors.New("no rows found")
+		}
+
+		extractor, err := p.getExtractor(sheet.Rows[0].Cells)
+		if err != nil {
+			return nil, err
+		}
 
 		for i := 1; i < len(sheet.Rows); i++ {
 			tx := &database.Transaction{
@@ -98,55 +122,30 @@ func (p *Paribas) ParseMessages(
 			transactions = append(transactions, tx)
 
 			tx.DeduplicationKeys = append(tx.DeduplicationKeys, p.extractFromCellV1(row.Cells))
-			date, cellErr := row.Cells[0].GetTime(false)
-			if cellErr != nil {
-				tx.ParsingError = errors.Join(cellErr, errors.Newf("can not parse date: %s", row.Cells[0].String()))
+
+			data, parseErr := extractor.Extract(ctx, row.Cells)
+			if parseErr != nil {
+				tx.ParsingError = parseErr
 				continue
 			}
+			tx.Date = data.Date
+			tx.DateFromMessage = data.DateFromMessage
+			tx.OriginalTxType = data.TransactionType
+			tx.Raw = data.Raw
+			tx.Description = data.Description
 
-			tx.Date = date
-			tx.DateFromMessage = date.Format("15:04")
-
-			amount := row.Cells[3].String()
-			amountParsed, amountErr := decimal.NewFromString(amount)
-			if amountErr != nil {
-				tx.ParsingError = errors.Join(amountErr, errors.Newf("can not parse amount: %s", amount))
-				continue
-			}
-
-			currency := row.Cells[4].String()
-			senderOrReceiver := row.Cells[5].String()
-			description := row.Cells[6].String()
-
-			rawAccount := row.Cells[7].String()
-			accountArr := toLines(strings.ToLower(rawAccount))
-			account := lo.Reverse(accountArr)[0]
-
-			transactionType := row.Cells[8].String()
-			tx.OriginalTxType = transactionType
-
-			kwotaStr := row.Cells[9].String()
-			kwotaParsed, kwotaErr := decimal.NewFromString(kwotaStr)
-			if kwotaErr != nil {
-				tx.ParsingError = errors.Join(kwotaErr, errors.Newf("can not parse kwota: %s", kwotaStr))
-				continue
-			}
-
-			transactionCurrency := row.Cells[10].String()
-			//status := row.Cells[11].String()
-
-			if description == "" {
-				description = transactionType // firefly description is required
-			}
+			var transactionType = data.TransactionType
+			var currency = data.Currency
+			var transactionCurrency = data.TransactionCurrency
+			var amountParsed = data.Amount
+			var kwotaParsed = data.TransactionAmount
+			var account = data.Account
+			var destinationAccount = data.DestinationAccount
+			var executedAt = data.ExecutedAt
+			var amount = data.AmountString
+			var kwotaStr = data.TransactionAmountString
 
 			skipExtraChecks := false
-			tx.Raw = strings.Join([]string{description, senderOrReceiver, rawAccount, transactionType}, "\n")
-			tx.Description = description
-
-			account = p.stripAccountPrefix(account)
-			destinationAccount := p.stripAccountPrefix(toLines(senderOrReceiver)[0])
-
-			executedAt := row.Cells[1].String()
 
 			switch transactionType {
 			case "Transakcja kartą", "Transakcja BLIK", "Prowizje i opłaty",
@@ -274,14 +273,28 @@ func (p *Paribas) merge(
 ) ([]*database.Transaction, error) {
 	var final []*database.Transaction
 
+	var isPaymentByCard = func(tx *database.Transaction) bool {
+		return tx.OriginalTxType == "Spłata karty"
+	}
+
+	var filteredTransactions []*database.Transaction
+
 	for _, tx := range transactions {
-		if tx.ParsingError != nil { // pass-through
+		if tx.ParsingError != nil {
 			final = append(final, tx)
 			continue
 		}
 
+		if tx.Description == "Spłata karty" || tx.Description == "Card repayment" {
+			final = append(final, tx)
+		} else {
+			filteredTransactions = append(filteredTransactions, tx)
+		}
+	}
+
+	for _, tx := range filteredTransactions {
+
 		isDuplicate := false
-		isCreditPayment := tx.OriginalTxType == "Spłata karty"
 
 		for _, f := range final {
 			if tx.OriginalTxType == "Prowizje i opłaty" {
@@ -292,7 +305,13 @@ func (p *Paribas) merge(
 				continue
 			}
 
-			if !isCreditPayment && f.Description != tx.Description {
+			isCreditPaymentTx := isPaymentByCard(tx)
+
+			if !isCreditPaymentTx && f.Description != tx.Description {
+				continue
+			}
+
+			if isCreditPaymentTx && (f.Description != "Spłata karty" && f.Description != "Card repayment") {
 				continue
 			}
 
@@ -308,6 +327,12 @@ func (p *Paribas) merge(
 				if !f.SourceAmount.Equal(tx.SourceAmount) &&
 					tx.DestinationCurrency == f.DestinationCurrency && tx.SourceCurrency == f.SourceCurrency {
 					continue // very similar tx with same description but as amounts are different mostlikely this two separate tx
+				}
+			}
+
+			if f.SourceAccount != "" && tx.SourceAccount != "" && f.DestinationAccount != "" && tx.DestinationAccount != "" {
+				if f.SourceAccount == tx.SourceAccount && f.DestinationAccount == tx.DestinationAccount && tx.OriginalTxType == f.OriginalTxType {
+					continue
 				}
 			}
 
@@ -345,6 +370,7 @@ func (p *Paribas) merge(
 			tx.Type = database.TransactionTypeInternalTransfer
 
 			isDuplicate = true
+
 			f.DuplicateTransactions = append(f.DuplicateTransactions, tx)
 			break
 		}
@@ -354,6 +380,7 @@ func (p *Paribas) merge(
 		}
 
 		final = append(final, tx)
+
 	}
 
 	return final, nil
